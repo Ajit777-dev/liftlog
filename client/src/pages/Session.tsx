@@ -183,7 +183,6 @@ export default function Session() {
   };
 
   const cancelWorkout = () => {
-    clearActiveSession();
     navigate("/");
   };
 
@@ -397,19 +396,18 @@ export default function Session() {
       <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel Workout?</AlertDialogTitle>
+            <AlertDialogTitle>Leave Workout?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your progress will be lost and this session won't be saved.
+              Your progress is auto-saved. You can resume this workout anytime from the home screen.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep Going</AlertDialogCancel>
             <AlertDialogAction
               onClick={cancelWorkout}
-              className="bg-destructive text-destructive-foreground"
               data-testid="button-confirm-cancel"
             >
-              Cancel Workout
+              Save & Go Home
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -511,18 +509,21 @@ function ExerciseCard({
               className="rounded-lg px-3 py-2 mb-1"
               style={{ background: "hsl(217 91% 55% / 0.08)", border: "1px solid hsl(217 91% 55% / 0.15)" }}
             >
-              <p className="text-[11px] font-semibold text-primary mb-1 flex items-center gap-1">
+              <p className="text-[11px] font-semibold text-primary mb-1.5 flex items-center gap-1">
                 <Clock className="w-3 h-3" /> Last session ({formatDate(lastData.date)})
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {lastData.sets.filter(s => s.completed).map((s, i) => (
                   <span key={i} className="text-[11px] text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full font-mono">
-                    {s.weight}kg × {s.reps}{s.partialReps ? `+${s.partialReps}p` : ""}
+                    {s.weight}kg × {s.reps}{s.partialReps ? `+${s.partialReps}p` : ""}{s.type !== "normal" ? ` (${s.type[0].toUpperCase()})` : ""}
                   </span>
                 ))}
               </div>
             </div>
           )}
+
+          {/* Strength progress delta (vs last session, based on completed sets) */}
+          <ExerciseProgressSummary exercise={exercise} lastData={lastData} />
 
           {/* Column headers */}
           <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 80px 44px" }}>
@@ -574,6 +575,78 @@ function ExerciseCard({
   );
 }
 
+// ─── Exercise Progress Summary ───────────────────────────────────────────────
+
+function ExerciseProgressSummary({
+  exercise,
+  lastData,
+}: {
+  exercise: SessionExercise;
+  lastData: { sets: WorkoutSet[]; date: number } | null;
+}) {
+  const completedSets = exercise.sets.filter((s) => s.completed);
+  if (completedSets.length === 0) return null;
+
+  const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
+  const totalPartial = completedSets.reduce((sum, s) => sum + (s.partialReps ?? 0), 0);
+  const bestWeight = Math.max(...completedSets.map((s) => s.weight));
+  const assistedCount = completedSets.filter((s) => s.type === "assisted").length;
+  const failureCount = completedSets.filter((s) => s.type === "failure").length;
+
+  let weightDelta: number | null = null;
+  let repsDelta: number | null = null;
+
+  if (lastData) {
+    const lastCompleted = lastData.sets.filter((s) => s.completed);
+    if (lastCompleted.length > 0) {
+      const lastBestWeight = Math.max(...lastCompleted.map((s) => s.weight));
+      const lastTotalReps = lastCompleted.reduce((sum, s) => sum + s.reps, 0);
+      weightDelta = parseFloat((bestWeight - lastBestWeight).toFixed(2));
+      repsDelta = totalReps - lastTotalReps;
+    }
+  }
+
+  const hasImprovement = (weightDelta ?? 0) > 0 || (repsDelta ?? 0) > 0;
+  const hasDecline = (weightDelta ?? 0) < 0 || (repsDelta ?? 0) < 0;
+
+  return (
+    <div className="rounded-lg px-3 py-2 mb-1 bg-muted/40 border border-border/50">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        {/* Current totals */}
+        <div className="flex flex-wrap gap-2 text-[11px]">
+          <span className="font-medium text-foreground">
+            {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""} · {bestWeight}kg
+          </span>
+          {assistedCount > 0 && (
+            <span className="text-blue-400 font-medium">{assistedCount} assisted</span>
+          )}
+          {failureCount > 0 && (
+            <span className="text-destructive font-medium">{failureCount} to failure</span>
+          )}
+        </div>
+
+        {/* Delta vs last session */}
+        {(weightDelta !== null || repsDelta !== null) && (
+          <div className={`flex items-center gap-1.5 text-[11px] font-semibold ${
+            hasImprovement ? "text-green-500" : hasDecline ? "text-destructive" : "text-muted-foreground"
+          }`}>
+            {hasImprovement ? <TrendingUp className="w-3 h-3" /> : hasDecline ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+            <span>
+              {weightDelta !== null && weightDelta !== 0 && (
+                <>{weightDelta > 0 ? "+" : ""}{weightDelta}kg{repsDelta !== null && repsDelta !== 0 ? ", " : ""}</>
+              )}
+              {repsDelta !== null && repsDelta !== 0 && (
+                <>{repsDelta > 0 ? "+" : ""}{repsDelta} reps</>
+              )}
+              {weightDelta === 0 && repsDelta === 0 && "Same as last time"}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Set Row ─────────────────────────────────────────────────────────────────
 
 interface SetRowProps {
@@ -585,10 +658,10 @@ interface SetRowProps {
   onToggleComplete: () => void;
 }
 
-const SET_TYPE_CONFIG: Record<SetType, { label: string; color: string }> = {
-  normal: { label: "N", color: "bg-muted text-muted-foreground" },
-  assisted: { label: "A", color: "bg-blue-500/20 text-blue-500" },
-  failure: { label: "F", color: "bg-destructive/20 text-destructive" },
+const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: string }> = {
+  normal: { label: "Normal", short: "N", color: "bg-muted text-muted-foreground" },
+  assisted: { label: "Assisted", short: "A", color: "bg-blue-500/20 text-blue-400 border border-blue-500/30" },
+  failure: { label: "Failure", short: "F", color: "bg-destructive/20 text-destructive border border-destructive/30" },
 };
 
 const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
@@ -658,11 +731,11 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
       <button
         onClick={cycleType}
         disabled={set.completed}
-        className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
+        className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors leading-none ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
         data-testid={`button-set-type-${set.id}`}
-        title={set.type}
+        title={`Tap to change: ${set.type}`}
       >
-        {set.type === "normal" ? "Normal" : set.type === "assisted" ? "Assisted" : "Failure"}
+        {typeConfig.label}
       </button>
 
       {/* Complete / Remove */}
@@ -810,28 +883,29 @@ function RepsInput({
           <button
             onClick={() => { if (!disabled) { const v = Math.max(0, partialReps - 1); onChangePartial(v); if (v === 0) setShowPartial(false); } }}
             disabled={disabled || partialReps <= 0}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground/60 disabled:opacity-30"
+            className="w-7 h-7 rounded-md flex items-center justify-center text-orange-400/70 disabled:opacity-30"
           >
-            <Minus className="w-2.5 h-2.5" />
+            <Minus className="w-3 h-3" />
           </button>
           <div className="flex-1 text-center">
-            <span className="text-[10px] text-muted-foreground font-medium">+{partialReps}p</span>
+            <span className="text-xs text-orange-400 font-semibold">+{partialReps}p</span>
           </div>
           <button
             onClick={() => !disabled && onChangePartial(partialReps + 1)}
             disabled={disabled}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground/60 disabled:opacity-30"
+            className="w-7 h-7 rounded-md flex items-center justify-center text-orange-400/70 disabled:opacity-30"
           >
-            <Plus className="w-2.5 h-2.5" />
+            <Plus className="w-3 h-3" />
           </button>
         </div>
       ) : (
         !disabled && (
           <button
             onClick={() => setShowPartial(true)}
-            className="text-[9px] text-muted-foreground/50 text-center"
+            className="w-full text-center text-[11px] font-medium text-orange-400/70 hover:text-orange-400 py-0.5 rounded transition-colors"
+            data-testid={`${testId}-partial-btn`}
           >
-            +partial
+            + partial
           </button>
         )
       )}

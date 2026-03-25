@@ -1,0 +1,138 @@
+Improve the existing workout tracking app with the following enhancements focused on usability, data clarity, and user experience.
+
+---
+
+## 1. Strength Progress Visibility (VERY IMPORTANT)
+
+For each exercise, clearly show improvement compared to the previous session:
+
+### Requirements:
+
+* After logging a set or completing a workout:
+
+  * Show comparison with last session:
+
+    * Weight difference (e.g., +2.5 kg)
+    * Reps difference (e.g., +2 reps)
+* At exercise level, display:
+
+  * “Last time vs Current”
+* Highlight improvements using:
+
+  * Green color for increase
+  * Red or neutral for same/decrease
+
+### Example UI:
+
+* “Last: 10 reps @ 20kg”
+* “Now: 12 reps @ 22.5kg”
+* “+2 reps, +2.5kg improvement”
+
+---
+
+## 2. Persist Workout on Cancel (CRITICAL UX FIX)
+
+Current issue:
+
+* When user clicks “Cancel”, all progress is lost
+
+### Fix:
+
+* Do NOT delete workout data on cancel
+* Instead:
+
+  * Save as “In Progress Workout”
+  * Allow user to resume later
+
+### Add:
+
+* Auto-save after every set
+* If user exits:
+
+  * Show “Resume Last Workout” on home screen
+
+---
+
+## 3. Detailed Set Breakdown (Clarity Feature)
+
+For each set, clearly display:
+
+* Full reps
+* Partial reps
+* Whether it was:
+
+  * Assisted
+  * Failure
+
+### UI Example:
+
+* Set 1:
+
+  * 8 reps + 2 partial reps (Assisted)
+* Set 2:
+
+  * 10 reps (Failure)
+
+Also show totals per exercise:
+
+* Total reps
+* Total partial reps
+* Number of assisted sets
+
+---
+
+## 4. Improve Partial Reps Button (UI Fix)
+
+### Requirement:
+
+* Increase size of “+ Partial Rep” button
+* Make it:
+
+  * Same size as main “+ Rep” button
+  * Easy to tap during workout
+
+### UX Improvements:
+
+* Add spacing between buttons
+* Use clear label:
+
+  * “+ Partial”
+* Ensure it is thumb-friendly
+
+---
+
+## 5. UI Polishing (Important)
+
+* Make all action buttons:
+
+  * Large
+  * Rounded
+  * Easy to tap
+* Maintain consistent spacing
+* Keep interface minimal and distraction-free
+
+---
+
+## 6. Data Handling Update
+
+Ensure data model supports:
+
+* partialReps
+* assisted (boolean)
+* failure (boolean)
+
+Ensure all values are:
+
+* Saved immediately (auto-save)
+* Persisted locally
+
+---
+
+## 🎯 Goal of Improvements
+
+* Make strength progress clearly visible
+* Prevent data loss
+* Improve workout logging speed
+* Enhance real-world usability in gym conditions
+
+Focus on clarity, speed, and reliability.
