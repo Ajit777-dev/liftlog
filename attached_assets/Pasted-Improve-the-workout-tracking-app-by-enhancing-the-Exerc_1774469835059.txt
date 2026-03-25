@@ -1,0 +1,258 @@
+Improve the workout tracking app by enhancing the Exercise Progress and Last Session sections to provide deep, real-world strength tracking.
+
+---
+
+## 🎯 Core Goal
+
+The user should clearly understand:
+
+* What they did in the last session (full detail)
+* How much they improved over time
+* How hard they are actually pushing (intensity, not just volume)
+* What they need to beat in the current workout
+
+---
+
+# 📊 1. Exercise Progress (X-Y Graph with Real Metrics)
+
+## X-Axis (Horizontal)
+
+* Use actual dates (e.g., 24 Mar, 26 Mar, Today)
+* NOT session labels like S1, S2
+
+---
+
+## Y-Axis (Switchable Metrics)
+
+Allow user to switch between:
+
+* Reps
+* Sets
+* Weight
+* Volume
+* **Intensity (Primary)**
+
+---
+
+## 🔥 2. Intensity Score (CORE FEATURE)
+
+Calculate intensity per session:
+
+Intensity =
+(weight × reps)
+
+* (partialReps × weight × 0.5)
+
+Adjustments:
+
+* Failure sets → +10% bonus
+* Assisted sets → −10% penalty
+
+---
+
+## 📈 3. Intensity Graph (Primary View)
+
+* Use line graph
+* X-axis → Date
+* Y-axis → Intensity score
+* Show trend clearly over time
+
+---
+
+## 📅 4. Date Range Tracking
+
+Allow user to track progress from a specific date:
+
+* Last 7 days
+* Last 30 days
+* Custom date range
+
+---
+
+## 📊 5. Progress Summary (Above Graph)
+
+Display:
+
+Start (selected date):
+
+* Intensity value
+
+Current:
+
+* Latest intensity
+
+Improvement:
+
+* +X increase
+* % increase
+
+Example:
+Start: 850
+Now: 980
++130 (+15%) ↑
+
+---
+
+## 🟦 6. Supporting Graphs
+
+Also allow switching to:
+
+### Reps Graph
+
+* Show total reps per session
+* Optionally include:
+
+  * Full reps vs partial reps
+
+### Sets Graph
+
+* Show number of sets
+* Highlight assisted/failure sets
+
+### Volume Graph
+
+Volume = weight × (reps + partialReps)
+
+---
+
+## 📌 7. Improvement Indicators
+
+On latest graph point:
+
+* Show:
+
+  * +X reps
+  * +X weight
+  * +X sets
+  * +X intensity
+
+Use green color for improvements.
+
+---
+
+# 🧾 8. Detailed Last Session Breakdown (CRITICAL)
+
+## 🎯 Goal
+
+User should clearly understand:
+
+* Exactly what they did last time
+* Where they struggled
+* What to beat today
+
+---
+
+## 📊 9. Per-Set Detailed Display
+
+For each set, show:
+
+* Weight
+* Full reps
+* Partial reps (if any)
+* Indicators:
+
+  * Failure → 🔥
+  * Assisted → 🤝
+
+---
+
+### Example:
+
+* 90kg × 10
+* 90kg × 9 (+2 partial)
+* 95kg × 8 🔥
+
+---
+
+## 🧾 10. Summary Section (Below Sets)
+
+Display totals:
+
+* Total reps
+* Partial reps
+* Total sets
+* Assisted sets count
+* Failure sets count
+
+---
+
+### Example:
+
+Total reps: 27
+Partial reps: 2
+Sets: 3
+Failure sets: 1
+
+---
+
+## 📌 11. Last Session Card (Top Section)
+
+Display:
+
+Last Session (2 days ago):
+
+* Full detailed sets (as above)
+
+---
+
+## 🎯 12. Target / Beat Feature
+
+Below last session, show:
+
+Target:
+
+* Beat last reps OR increase weight
+
+Example:
+
+* “Last: 25 reps @ 20kg”
+* “Try: 27 reps OR +2.5kg”
+
+---
+
+## 🎨 13. UI Requirements
+
+* Clean iOS-style UI
+* Dark mode
+* Compact but readable layout
+* Use chips/tags for:
+
+  * Partial reps
+  * Failure
+  * Assisted
+* Highlight latest data clearly
+* Smooth graph animations
+
+---
+
+## 💾 14. Data Requirements
+
+Each set must store:
+
+* reps
+* partialReps
+* weight
+* assisted (boolean)
+* failure (boolean)
+
+---
+
+## ⚡ 15. UX & Performance
+
+* Auto-update graph after workout
+* Fast loading (local storage only)
+* Easy to read during workout
+* No clutter
+
+---
+
+## 🎯 Final Goal
+
+User should instantly know:
+
+* “What did I do last time?”
+* “How much stronger am I now?”
+* “Am I pushing harder?”
+* “What should I beat today?”
+
+This app should focus on real strength tracking, not just numbers.
