@@ -1,0 +1,182 @@
+Build and improve the Exercise Progress screen of the workout tracking app to clearly show strength progression using X-Y graphs and last session comparison.
+
+---
+
+## 🎯 Core Goal
+
+For each exercise, the user should instantly understand:
+
+* How they performed in the last session
+* What they need to beat today
+* Whether they are improving over time
+
+Focus on motivation and clarity.
+
+---
+
+## 📊 1. X-Y Axis Graph (Main Feature)
+
+### Graph Type:
+
+* Use a clean line chart
+
+### X-Axis:
+
+* Workout sessions (S1, S2, S3...) or dates
+
+### Y-Axis:
+
+Allow switching between:
+
+* Reps (default)
+* Weight
+* Sets
+* Volume
+
+---
+
+## 📈 2. Reps Progress (Primary View)
+
+* Plot total reps per session
+* Also include **dual line**:
+
+  * Full reps (main line)
+  * Partial reps (secondary line)
+
+---
+
+## 📌 3. Last Session / Target Card (VERY IMPORTANT)
+
+Above the graph, show a comparison card:
+
+### Example:
+
+Last Session:
+
+* 25 reps @ 20kg
+
+Target:
+
+* Beat 25 reps OR increase weight
+
+---
+
+### After current session:
+
+Show:
+
+Current:
+
+* 30 reps @ 22.5kg
+
+Improvement:
+
+* +5 reps
+* +2.5kg
+
+---
+
+## 🎯 4. Push Guidance (Motivation Feature)
+
+Show suggestion:
+
+* “Try to beat 25 reps”
+* “Or increase weight by 2.5kg”
+
+This should update dynamically based on last session.
+
+---
+
+## 🟢 5. Improvement Indicators
+
+On latest graph point:
+
+* Show:
+
+  * “+X reps vs last session”
+  * “+X weight”
+  * “+X sets”
+
+Use green for improvement.
+
+---
+
+## 🧾 6. Tap Interaction (Detailed Breakdown)
+
+When user taps a point in graph, show:
+
+* Total reps
+* Partial reps
+* Sets
+* Assisted sets
+* Failure sets
+
+Example:
+
+* 30 reps (25 full + 5 partial)
+* 5 sets (1 assisted, 1 failure)
+
+---
+
+## 🟩 7. Sets Handling
+
+* Do not mix sets in same graph
+* Show:
+
+  * As separate metric tab
+    OR
+  * As labels near graph points
+
+---
+
+## 🟨 8. Volume Calculation
+
+Volume = weight × (reps + partialReps)
+
+Show this as a separate graph option.
+
+---
+
+## 🎨 9. UI Design Requirements
+
+* Clean iOS-style UI
+* Dark mode
+* Highlight latest session clearly
+* Smooth animations for graph
+* Easy to read during workouts
+* Minimal clutter
+
+---
+
+## 💾 10. Data Requirements
+
+Each set must store:
+
+* reps
+* partialReps
+* weight
+* assisted (boolean)
+* failure (boolean)
+
+Aggregate per session for graph.
+
+---
+
+## ⚡ 11. Performance & UX
+
+* Graph updates instantly after workout
+* Last session card always visible
+* Fast loading (local data only)
+* Touch-friendly interactions
+
+---
+
+## 🎯 Final Goal
+
+User should instantly know:
+
+* “What did I do last time?”
+* “What should I beat today?”
+* “Am I getting stronger?”
+
+The app should actively push the user to improve every session.
