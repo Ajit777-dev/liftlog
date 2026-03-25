@@ -1,0 +1,201 @@
+Build a mobile-first iOS-style workout tracking app with a clean, minimal UI focused on speed and simplicity.
+
+---
+
+## 🎯 Core Goal
+
+The app should allow me to quickly log workouts session-by-session and clearly track strength progression:
+
+* More weight lifted
+* More reps completed
+* Performance compared to previous sessions
+
+Everything should be stored **locally on the device** (no backend, no cloud).
+
+---
+
+## 📱 Platform & Tech
+
+* Build as a mobile web app (PWA) optimized for iPhone UI
+* Use React (or Next.js)
+* Use Tailwind CSS for styling
+* Use local storage (or IndexedDB) for data persistence
+* No Firebase or backend
+
+---
+
+## 🧩 Core Features
+
+### 1. Workout Flow (Very Important UX)
+
+* Select or create:
+
+  * Muscle group
+  * Exercise
+* Start a workout session
+* Add sets quickly with minimal typing
+
+UI should be:
+
+* Tap-based (buttons, not forms)
+* Fast (1–2 taps per set)
+* Large touch-friendly elements
+
+---
+
+### 2. Set Logging (MAIN FEATURE)
+
+Each set must support:
+
+* Reps (full reps)
+* Partial reps (within same set)
+* Weight
+* Set Type (tag):
+
+  * Normal
+  * Assisted (with help)
+  * Failure
+  * Partial-focused
+
+---
+
+### 3. Flexible Set Entry
+
+Support two modes:
+
+#### Quick Mode
+
+* Same weight & reps applied to all sets
+* User selects number of sets
+
+#### Advanced Mode
+
+* Log each set individually
+* Customize:
+
+  * Reps
+  * Partial reps
+  * Weight
+  * Set type
+
+---
+
+### 4. Smart Set Input UI
+
+For each set:
+
+* Buttons for:
+
+  * +1 rep
+  * +1 partial rep
+  * * weight
+* Toggle buttons for:
+
+  * Assisted
+  * Failure
+
+Avoid typing as much as possible.
+
+---
+
+### 5. Workout History
+
+For each exercise:
+
+* Show previous session:
+
+  * Sets, reps, weight
+* Highlight:
+
+  * Personal best
+  * Improvement (↑ reps / ↑ weight)
+
+---
+
+### 6. Progress Tracking
+
+Show:
+
+* Total volume (sets × reps × weight)
+* Comparison with last workout
+
+Example:
+"You lifted +10kg total volume compared to last session"
+
+---
+
+### 7. Simple Recommendation System
+
+Based on last workout:
+
+* Suggest:
+
+  * Increase reps
+  * Increase weight
+
+Example:
+"Last time: 10 reps → Try 11–12 reps"
+"Or increase weight by 2.5kg"
+
+---
+
+### 8. Data Model (IMPORTANT)
+
+Design clean structure:
+
+* MuscleGroup
+* Exercise
+* WorkoutSession
+* Set:
+
+  * reps
+  * partialReps
+  * weight
+  * type (normal / assisted / failure)
+
+---
+
+### 9. UI Design Requirements
+
+* iOS-style design (Apple Health / Fitness inspired)
+* Minimal and clean
+* Dark mode default
+* Card-based layout
+* Smooth transitions
+* Sticky bottom controls for adding sets
+
+---
+
+### 10. Local Storage Only
+
+* Use:
+
+  * IndexedDB or localStorage
+* Data must persist across sessions
+* No login required
+
+---
+
+## 🚀 Bonus Features (Optional)
+
+* Rest timer between sets
+* Swipe to delete/edit sets
+* Edit previous workouts
+* Quick duplicate last workout
+
+---
+
+## 📦 Deliverables
+
+* Fully functional UI
+* Clean component structure
+* Reusable components
+* Smooth and responsive performance
+
+Focus heavily on:
+
+* Speed of logging workouts
+* Simplicity of UI
+* Clear progress tracking
+
+This should feel like a real fitness app, not a form-based tool.
