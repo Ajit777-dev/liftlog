@@ -219,6 +219,7 @@ export function getSessionsByExercise(exerciseId: string): WorkoutSession[] {
   );
 }
 
+
 export function saveSession(session: WorkoutSession): void {
   const sessions = load<WorkoutSession>(KEYS.sessions).filter(
     (s) => s.id !== session.id

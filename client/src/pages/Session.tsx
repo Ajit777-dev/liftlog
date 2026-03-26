@@ -561,7 +561,10 @@ function ExerciseCard({
             <Button
               variant="outline"
               size="sm"
-              onClick={onCompleteAll}
+              onClick={() => {
+                onCompleteAll();
+                setTimeout(onToggleExpand, 50);
+              }}
               className="flex-1 gap-1.5"
               data-testid={`button-complete-all-${exercise.id}`}
             >
@@ -739,7 +742,7 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
       </button>
 
       {/* Complete / Remove */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-center gap-1">
         {!set.completed ? (
           <button
             onClick={onToggleComplete}
@@ -755,6 +758,16 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
             data-testid={`button-uncomplete-set-${set.id}`}
           >
             <Check className="w-4 h-4 text-primary-foreground" />
+          </button>
+        )}
+        {!set.completed && (
+          <button
+            onClick={onRemove}
+            className="w-8 h-8 rounded-full border border-muted/60 flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+            data-testid={`button-remove-set-${set.id}`}
+            title="Remove set"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>

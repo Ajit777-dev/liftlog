@@ -95,18 +95,45 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || "5000", 10);
+  // or the CLI argument --port / --port=X, then fallback to 3000.
+  // This is needed to support both environment override and non-root user defaults.
+  const parseNumericPort = (raw: string | undefined): number | undefined => {
+    if (!raw || raw.trim() === "") return undefined;
+    const candidate = Number(raw.replace(/\D/g, "") || raw);
+    if (!Number.isFinite(candidate) || candidate <= 0 || candidate > 65535) return undefined;
+    return Math.floor(candidate);
+  };
+
+  const parsePortArg = (): number | undefined => {
+    const exactArg = process.argv.find((arg) => arg.startsWith("--port="));
+    if (exactArg) {
+      return parseNumericPort(exactArg.split("=")[1]);
+    }
+
+    const argIndex = process.argv.findIndex((arg) => arg === "--port" || arg === "-p");
+    if (argIndex >= 0 && process.argv[argIndex + 1]) {
+      return parseNumericPort(process.argv[argIndex + 1]);
+    }
+
+    return undefined;
+  };
+
+  const cliPort = parsePortArg();
+  const envPort = parseNumericPort(process.env.PORT);
+  const port = cliPort ?? envPort ?? 3000;
+
+  if (!Number.isFinite(port) || port <= 0 || port >= 65536) {
+    throw new Error(`Invalid port configured: env=${process.env.PORT ?? "<unset>"}, cli=${JSON.stringify(process.argv)}`);
+  }
+
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
-      reusePort: true,
+      host: "127.0.0.1",
+      reusePort: false,
     },
     () => {
-      log(`serving on port ${port}`);
+      log(`serving on http://localhost:${port}`);
     },
   );
 })();

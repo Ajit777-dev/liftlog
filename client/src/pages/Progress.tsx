@@ -11,7 +11,6 @@ import { formatDate } from "@/lib/hooks";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Metric = "intensity" | "reps" | "weight";
 type Range  = "7d" | "30d" | "all";
 
 interface SessionPoint {
@@ -28,21 +27,27 @@ interface SessionPoint {
   rawSets: WorkoutSet[];
 }
 
+type Metric = "intensity" | "reps" | "weight" | "sets" | "volume";
+
 const METRIC_CONFIG: Record<Metric, { label: string; unit: string; color: string }> = {
-  intensity: { label: "Intensity", unit: "pts", color: "hsl(38 95% 55%)"   },
+  intensity: { label: "Intensity", unit: "pts", color: "hsl(38 95% 55%)" },
   reps:      { label: "Reps",      unit: "reps", color: "hsl(217 91% 60%)" },
   weight:    { label: "Weight",    unit: "kg",   color: "hsl(270 70% 65%)" },
+  sets:      { label: "Sets",      unit: "sets", color: "hsl(145 75% 45%)" },
+  volume:    { label: "Volume",    unit: "kg",   color: "hsl(7 80% 60%)" },
 };
 
 function getMetricValue(pt: SessionPoint, metric: Metric): number {
   if (metric === "intensity") return pt.intensity;
   if (metric === "reps")      return pt.totalReps;
-  return pt.maxWeight;
+  if (metric === "weight")    return pt.maxWeight;
+  if (metric === "sets")      return pt.totalSets;
+  return pt.volume;
 }
 
 function fmtVal(v: number, metric: Metric): string {
   if (metric === "intensity") return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : `${Math.round(v)}`;
-  if (metric === "weight")    return `${v % 1 === 0 ? v : v.toFixed(1)}`;
+  if (metric === "weight" || metric === "volume") return `${v % 1 === 0 ? v : v.toFixed(1)}`;
   return `${Math.round(v)}`;
 }
 
@@ -70,7 +75,6 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string, range: Rang
     .filter((s) =>
       s.exercises.some((e) => e.exerciseId === exerciseId) && s.startedAt >= cutoff
     )
-    .slice(0, 20)
     .reverse()
     .map((s) => {
       const ex        = s.exercises.find((e) => e.exerciseId === exerciseId)!;
@@ -89,12 +93,15 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string, range: Rang
         assistedSets, failureSets, rawSets: completed,
       };
     });
-  // Filter out zero-value points and deduplicate same-day entries (keep latest)
+  // Filter out invalid sessions: remove where reps=0, weight=0, or sets=0
+  const validPts = pts.filter((p) => p.totalReps > 0 && p.maxWeight > 0 && p.totalSets > 0);
+  
+  // Deduplicate same-day entries (keep latest)
   const deduped = new Map<string, SessionPoint>();
-  for (const p of pts) {
+  for (const p of validPts) {
     deduped.set(p.dateLabel, p);
   }
-  return Array.from(deduped.values()).filter((p) => p.totalSets > 0);
+  return Array.from(deduped.values());
 }
 
 // ─── SVG Line Chart ──────────────────────────────────────────────────────────
@@ -107,77 +114,181 @@ function LineChart({
   selectedIndex: number | null;
   onSelect: (i: number) => void;
 }) {
-  const W = 320;
-  const H = 170;
-  const PAD = { top: 28, right: 22, bottom: 30, left: 42 };
-  const chartW = W - PAD.left - PAD.right;
-  const chartH = H - PAD.top - PAD.bottom;
-  const cfg = METRIC_CONFIG[metric];
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!points || points.length === 0) {
+    return (
+      <div className="flex justify-center items-center py-6 text-sm text-muted-foreground">
+        No valid workout data available for selected exercise.
+      </div>
+    );
+  }
+
+  try {
+    const W = 320;
+    const H = 170;
+    const PAD = { top: 28, right: 22, bottom: 30, left: 42 };
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
+    const cfg = METRIC_CONFIG[metric];
 
   const values = points.map((p) => getMetricValue(p, metric));
-  const maxVal = Math.max(...values, 1);
-  const minVal = Math.max(0, Math.min(...values) * 0.82);
-  const span   = maxVal - minVal || 1;
+  const numericValues = values.filter((v) => Number.isFinite(v));
+  if (!numericValues.length) {
+    return (
+      <div className="flex justify-center items-center py-6 text-sm text-muted-foreground">
+        No valid workout data available for selected exercise.
+      </div>
+    );
+  }
+
+  const dataMin = Math.min(...numericValues);
+  const dataMax = Math.max(...numericValues);
+  let minVal = 0;
+  let maxVal = Math.max(dataMax, 1);
+  let span = maxVal - minVal;
+
+  // Special Y-axis handling for volume chart
+  let yTicks: number[];
+  if (metric === "volume") {
+    // Use recharts-like YAxis: domain [0, 'auto'], tickCount=5, clean ticks
+    minVal = 0;
+    const niceMax = Math.max(100, Math.ceil(maxVal / 100) * 100);
+    const tickCount = 5;
+    let step = niceMax / (tickCount - 1);
+    // Ensure step is >= 20 and round in sensible increments:
+    step = Math.max(20, Math.round(step / 50) * 50 || Math.ceil(step));
+    const adjustedMax = step * (tickCount - 1);
+    yTicks = Array.from({ length: tickCount }, (_, i) => i * step);
+    maxVal = adjustedMax;
+    span = maxVal - minVal;
+    if (span <= 0) {
+      span = 1;
+      maxVal = minVal + span;
+      yTicks = [0, 1, 2, 3, 4];
+    }
+  } else {
+    maxVal = Math.max(dataMax, minVal + 1);
+    span = maxVal - minVal;
+    yTicks = Array.from({ length: 6 }, (_, i) => minVal + (span / 5) * i);
+  }
 
   const cx = (i: number) => PAD.left + (i / Math.max(points.length - 1, 1)) * chartW;
-  const cy = (v: number) => PAD.top  + chartH - ((v - minVal) / span) * chartH;
+  const cy = (value: number) => {
+    const clamped = Math.min(Math.max(value, minVal), maxVal);
+    if (span <= 0) return PAD.top + chartH;
+    return PAD.top + chartH - ((clamped - minVal) / span) * chartH;
+  };
 
   // Straight-line path
-  const linePath = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(getMetricValue(p, metric))}`)
-    .join(" ");
+  const linePath = points.length === 1
+    ? (() => {
+      const x = cx(0);
+      const y = cy(getMetricValue(points[0], metric));
+      return `M ${x} ${y} L ${x + 1} ${y}`;
+    })()
+    : points
+      .map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(getMetricValue(p, metric))}`)
+      .join(" ");
 
   const areaPath = points.length > 1
     ? linePath + ` L ${cx(points.length - 1)} ${PAD.top + chartH} L ${cx(0)} ${PAD.top + chartH} Z`
     : "";
 
   // Y ticks
-  const ticks = [minVal, minVal + span * 0.5, maxVal].map(Math.round);
+  // Fallback y axis ticks for non-volume metrics
+  const ticks = yTicks;
 
-  // X labels: show first, last, and up to 4 middle
-  const showEvery = points.length > 6 ? Math.ceil(points.length / 5) : 1;
+  // X labels: show first, last, and a limited number of intermediate ticks to avoid overlap
+  const maxXAxisTicks = 5;
+  const xTickStep = Math.max(1, Math.floor((points.length - 1) / (maxXAxisTicks - 1)));
+  const xTickIndices = new Set<number>();
+  xTickIndices.add(0);
+  xTickIndices.add(points.length - 1);
+  for (let i = xTickStep; i < points.length - 1; i += xTickStep) {
+    xTickIndices.add(i);
+  }
+
+  const activeIndex = hoveredIndex !== null ? hoveredIndex : selectedIndex;
+  const activePoint = activeIndex !== null ? points[activeIndex] : null;
+  const activeValue = activePoint ? getMetricValue(activePoint, metric) : 0;
+
+  const rawTooltipX = activePoint && activeIndex !== null ? cx(activeIndex) : 0;
+  const rawTooltipY = activePoint ? cy(activeValue) : 0;
+  const tooltipX = Math.min(Math.max((rawTooltipX / W) * 100, 6), 94);
+  const tooltipY = Math.min(Math.max((rawTooltipY / H) * 100, 8), 85);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
-      <defs>
-        <linearGradient id={`area-${metric}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={cfg.color} stopOpacity="0.22" />
-          <stop offset="100%" stopColor={cfg.color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+        <defs>
+          <linearGradient id={`area-${metric}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={cfg.color} stopOpacity="0" />
+          </linearGradient>
+        </defs>
 
       {/* Grid lines */}
-      {ticks.map((tick, ti) => (
+      {yTicks.map((tick, ti) => (
         <g key={ti}>
           <line x1={PAD.left} y1={cy(tick)} x2={PAD.left + chartW} y2={cy(tick)}
-            stroke="hsl(var(--border))" strokeWidth="0.8" strokeDasharray="3 4" />
-          <text x={PAD.left - 5} y={cy(tick) + 3.5}
-            fontSize="8" fill="hsl(var(--muted-foreground))" textAnchor="end">
-            {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : tick}
+            stroke="hsl(var(--border))" strokeWidth="0.8" strokeDasharray="4 4" />
+          <text x={PAD.left - 8} y={cy(tick) + 3.5}
+            fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="end">
+            {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : Math.round(tick)}
           </text>
         </g>
       ))}
 
       {/* Area */}
-      {points.length > 1 && <path d={areaPath} fill={`url(#area-${metric})`} />}
+      {points.length > 0 && <path d={areaPath} fill={`url(#area-${metric})`} />}
 
       {/* Straight line */}
-      {points.length > 1 && (
+      {points.length >= 1 && (
         <path d={linePath} fill="none" stroke={cfg.color} strokeWidth="2.5"
           strokeLinecap="round" strokeLinejoin="round" />
       )}
 
+      {/* X-axis base line */}
+      <line
+        x1={PAD.left}
+        y1={PAD.top + chartH}
+        x2={PAD.left + chartW}
+        y2={PAD.top + chartH}
+        stroke="hsl(var(--muted-foreground))"
+        strokeWidth="1"
+        opacity="0.6"
+      />
+
       {/* X-axis labels */}
       {points.map((p, i) => {
-        const show = i === 0 || i === points.length - 1 || i % showEvery === 0;
-        if (!show) return null;
+        if (!xTickIndices.has(i)) return null;
+        const label = i === 0 ? "Start" : i === points.length - 1 ? "Latest" : p.dateLabel;
+        const isLatest = i === points.length - 1;
         return (
-          <text key={i} x={cx(i)} y={H - 4} fontSize="8"
-            fill="hsl(var(--muted-foreground))" textAnchor="middle">
-            {i === 0 ? "Start" : i === points.length - 1 ? "Latest" : p.dateLabel}
+          <text key={i}
+            x={cx(i)}
+            y={H - 4}
+            fontSize="8"
+            fill={isLatest ? "hsl(38 95% 55%)" : "hsl(var(--muted-foreground))"}
+            textAnchor="end"
+            transform={`translate(${cx(i)}, ${H - 4}) rotate(-45)`}
+            dominantBaseline="middle"
+            fontWeight={isLatest ? "bold" : "normal"}
+          >
+            {label}
           </text>
         );
       })}
+      {points.length > 0 && (
+        <rect
+          x={PAD.left}
+          y={PAD.top + chartH + 4}
+          width={chartW}
+          height={24}
+          fill="transparent"
+        />
+      )}
 
       {/* Data points with value labels */}
       {points.map((p, i) => {
@@ -192,11 +303,32 @@ function LineChart({
         const down     = prevV !== null && v < prevV;
         const label    = fmtVal(v, metric);
 
+        // Badge placement for endpoint delta: avoid going off-screen on right edge.
+        const badgeOffset = x > PAD.left + chartW - 46 ? -42 : 7;
+
+        const pointFill = isSelect
+          ? cfg.color
+          : isFirst || isLast
+          ? cfg.color
+          : "hsl(var(--muted-foreground))";
+
+        const pointStroke = isSelect
+          ? "white"
+          : isFirst || isLast
+          ? cfg.color
+          : "hsl(var(--muted-foreground))";
+
         // Value label position: above point, avoid top clip
         const labelY = y - 10 < PAD.top + 4 ? y + 18 : y - 10;
 
         return (
-          <g key={i} onClick={() => onSelect(i)} style={{ cursor: "pointer" }}>
+          <g
+            key={i}
+            onClick={() => onSelect(i)}
+            onMouseEnter={() => setHoveredIndex(i)}
+            onMouseLeave={() => setHoveredIndex(null)}
+            style={{ cursor: "pointer" }}
+          >
             {/* Tap target */}
             <circle cx={x} cy={y} r={18} fill="transparent" />
 
@@ -216,8 +348,10 @@ function LineChart({
 
             {/* Dot */}
             <circle cx={x} cy={y}
-              r={isSelect ? 5.5 : (isFirst || isLast) ? 5 : 3.5}
-              fill={isFirst || isLast || isSelect ? cfg.color : `${cfg.color}60`}
+              r={isSelect ? 5.5 : (isFirst || isLast) ? 5 : 4}
+              fill={pointFill}
+              stroke={pointStroke}
+              strokeWidth={isFirst || isLast || isSelect ? 1.5 : 1}
             />
 
             {/* Value label */}
@@ -234,11 +368,11 @@ function LineChart({
             {isLast && prevV !== null && v !== prevV && (
               <g>
                 <rect
-                  x={x + 7} y={y - 12} width={34} height={14}
+                  x={x + badgeOffset} y={y - 12} width={34} height={14}
                   rx="4"
                   fill={up ? "hsl(142 72% 40% / 0.95)" : "hsl(0 84% 55% / 0.95)"}
                 />
-                <text x={x + 24} y={y - 2.5}
+                <text x={x + badgeOffset + 17} y={y - 2.5}
                   fontSize="8" fill="white" textAnchor="middle" fontWeight="bold">
                   {up ? "+" : ""}{
                     metric === "intensity"
@@ -254,7 +388,36 @@ function LineChart({
         );
       })}
     </svg>
+
+    {activePoint && (
+      <div
+        className="pointer-events-none absolute z-20 rounded-md border border-border bg-background/95 px-2 py-1 text-xs shadow-xl"
+        style={{
+          left: `${tooltipX}%`,
+          top: `${tooltipY}%`,
+          transform: "translate(-50%, -105%)",
+          minWidth: "90px",
+          maxWidth: "160px",
+        }}
+      >
+        <div className="text-foreground font-semibold">
+          {fmtVal(activeValue, metric)} {METRIC_CONFIG[metric].unit}
+        </div>
+        <div className="text-[10px] text-muted-foreground">
+          {activeIndex === 0 ? "Start" : activeIndex === points.length - 1 ? "Latest" : activePoint.dateLabel}
+        </div>
+      </div>
+    )}
+  </div>
   );
+  } catch (error) {
+    console.error("LineChart rendering error:", error);
+    return (
+      <div className="text-center text-sm text-destructive py-4">
+        Unable to render chart. Please try another exercise or metric.
+      </div>
+    );
+  }
 }
 
 // ─── Progress Summary Bar ─────────────────────────────────────────────────────
@@ -419,11 +582,10 @@ export default function Progress() {
     setPbs(getPersonalBests());
     const exs = getExercises();
     setExercises(exs);
-    const withHistory = exs.filter((ex) =>
-      s.some((sess) => sess.exercises.some((e) => e.exerciseId === ex.id))
-    );
-    if (withHistory.length > 0) setSelectedExerciseId(withHistory[0].id);
-  }, []);
+    if (!selectedExerciseId && exs.length > 0) {
+      setSelectedExerciseId(exs[0].id);
+    }
+  }, [selectedExerciseId]);
 
   const getVolume = (session: WorkoutSession) =>
     session.exercises.reduce(
@@ -448,6 +610,7 @@ export default function Progress() {
   const lastWeekVol  = sessions.filter((s) => { const a = Date.now() - s.startedAt; return a >= 7*86400000 && a < 14*86400000; }).reduce((sum, s) => sum + getVolume(s), 0);
   const weeklyChange = lastWeekVol > 0 ? ((thisWeekVol - lastWeekVol) / lastWeekVol) * 100 : null;
 
+  const exerciseOptions = exercises;
   const exercisesWithHistory = exercises.filter((ex) =>
     sessions.some((s) => s.exercises.some((e) => e.exerciseId === ex.id))
   );
@@ -543,7 +706,7 @@ export default function Progress() {
             )}
 
             {/* Exercise Progress */}
-            {exercisesWithHistory.length > 0 && (
+            {exerciseOptions.length > 0 ? (
               <div className="rounded-xl bg-card border border-card-border overflow-hidden">
                 <div className="px-4 pt-4 pb-3 border-b border-border/40">
                   <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
@@ -551,7 +714,7 @@ export default function Progress() {
                     Exercise Progress
                   </h2>
                   <ExerciseSelector
-                    exercises={exercisesWithHistory}
+                    exercises={exerciseOptions}
                     selectedId={selectedExerciseId}
                     onSelect={handleSelectExercise}
                   />
@@ -563,16 +726,16 @@ export default function Progress() {
                     {/* Last session breakdown */}
                     {lastPoint && <LastSessionDetail point={lastPoint} prevPoint={prevPoint} />}
 
-                    {/* Metric tabs — 3 primary only */}
-                    <div className="flex gap-1 p-1 rounded-xl bg-muted/50">
-                      {(["intensity", "reps", "weight"] as Metric[]).map((m) => {
+                    {/* Metric tabs */}
+                    <div className="flex gap-1 p-1 rounded-xl bg-muted/50 overflow-x-auto">
+                      {(["intensity", "reps", "weight", "sets", "volume"] as Metric[]).map((m) => {
                         const cfg = METRIC_CONFIG[m];
                         const active = metric === m;
                         return (
                           <button
                             key={m}
                             onClick={() => { setMetric(m); setSelectedPoint(null); }}
-                            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
+                            className={`min-w-[80px] px-2 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
                               active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
                             }`}
                             data-testid={`button-metric-${m}`}
@@ -621,15 +784,28 @@ export default function Progress() {
                         )}
                       </div>
 
-                      {exercisePoints.length === 1 ? (
-                        <SinglePointDisplay point={exercisePoints[0]} metric={metric} />
+                      {exercisePoints.length > 0 ? (
+                        <>
+                          <LineChart
+                            points={exercisePoints}
+                            metric={metric}
+                            selectedIndex={selectedPoint}
+                            onSelect={(i) => setSelectedPoint(i === selectedPoint ? null : i)}
+                          />
+                          {exercisePoints.length === 1 && (
+                            <div className="mt-3">
+                              <SinglePointDisplay point={exercisePoints[0]} metric={metric} />
+                            </div>
+                          )}
+                        </>
                       ) : (
-                        <LineChart
-                          points={exercisePoints}
-                          metric={metric}
-                          selectedIndex={selectedPoint}
-                          onSelect={(i) => setSelectedPoint(i === selectedPoint ? null : i)}
-                        />
+                        <div className="flex flex-col items-center justify-center py-6 gap-2">
+                          <Activity className="w-5 h-5 text-muted-foreground opacity-50" />
+                          <p className="text-sm text-muted-foreground">No valid workout data</p>
+                          <p className="text-xs text-muted-foreground text-center max-w-xs">
+                            Complete a session with valid weight and reps to see progress
+                          </p>
+                        </div>
                       )}
 
                       {selectedPoint === null && exercisePoints.length > 1 && (
@@ -657,15 +833,34 @@ export default function Progress() {
 
                   </div>
                 ) : selectedExerciseId && exercisePoints.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-muted-foreground">No sessions in this range</p>
-                    <button className="text-xs text-primary mt-2 font-medium" onClick={() => setRange("all")}>
-                      Show all time →
-                    </button>
+                  <div className="text-center py-10 px-4 flex flex-col items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-muted-foreground opacity-60" />
+                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">No workout data available</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      {range === "all" 
+                        ? "Log this exercise to see progress tracking"
+                        : "No sessions found in the selected period"}
+                    </p>
+                    {range !== "all" && (
+                      <button className="text-xs text-primary mt-1 font-medium hover:underline" onClick={() => setRange("all")}>
+                        View all time →
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground text-center py-8">Select an exercise above</p>
+                  <div className="text-center py-10 px-4 flex flex-col items-center gap-2">
+                    <p className="text-sm text-muted-foreground">Select an exercise to view progress</p>
+                    <p className="text-xs text-muted-foreground max-w-xs">
+                      Choose from {exerciseOptions.length} exercise{exerciseOptions.length !== 1 ? "s" : ""} above
+                    </p>
+                  </div>
                 )}
+              </div>
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-sm text-muted-foreground">No exercises available. Add an exercise to get started.</p>
               </div>
             )}
           </>
@@ -827,8 +1022,8 @@ function PointDetail({ point, onClose }: { point: SessionPoint; onClose: () => v
               {set.weight > 0 ? `${set.weight}kg` : "BW"} × {set.reps}
               {(set.partialReps ?? 0) > 0 && <span className="text-orange-400 text-xs ml-1">(+{set.partialReps}p)</span>}
             </span>
-            {set.type === "failure"  && <span className="text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">🔥 Failure</span>}
-            {set.type === "assisted" && <span className="text-[10px] text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded-full">🤝 Assisted</span>}
+            {set.type === "failure"  && <span className="text-[10px] text-orange-400 bg-orange-400/10 px-1.5 py-0.5 rounded-full">🔥 Failure</span>}
+            {set.type === "assisted" && <span className="text-[10px] text-muted-foreground bg-muted/10 px-1.5 py-0.5 rounded-full">🤝 Assisted</span>}
           </div>
         ))}
       </div>
