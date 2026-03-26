@@ -34,6 +34,15 @@ export function log(message: string, source = "express") {
 }
 
 app.use((req, res, next) => {
+  if (process.env.NODE_ENV !== "production") {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+  next();
+});
+
+app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
