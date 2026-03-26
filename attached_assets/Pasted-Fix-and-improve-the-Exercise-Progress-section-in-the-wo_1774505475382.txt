@@ -1,0 +1,147 @@
+Fix and improve the Exercise Progress section in the workout tracking app.
+
+---
+
+# 🚨 1. Fix: Graph Not Visible
+
+## Issue:
+
+* The progress chart is not showing or rendering correctly
+
+## Requirements:
+
+* Ensure the graph always renders when data exists
+* If no data is available:
+
+  * Show message:
+    “No workout data available”
+* Do NOT render empty or broken charts
+
+---
+
+## Data Handling Fix:
+
+* Filter out invalid sessions:
+
+  * Remove sessions where:
+
+    * reps = 0
+    * weight = 0
+    * sets = 0
+* Only plot valid workout sessions
+
+---
+
+## Graph Rendering:
+
+* Use a simple **line chart**
+* Use straight lines (no curves)
+* Ensure:
+
+  * Proper width and height
+  * Responsive layout (mobile-friendly)
+* Avoid overlapping points or duplicate dates
+
+---
+
+## Axis Fix:
+
+* X-axis:
+
+  * Use unique dates OR session numbers
+* Y-axis:
+
+  * Show correct metric (intensity / reps / weight)
+
+---
+
+## Visibility Check:
+
+* Ensure chart component mounts correctly
+* Ensure data is passed correctly to chart
+* Add fallback UI if chart fails
+
+---
+
+# 🔍 2. Add Exercise Search (Missing Feature)
+
+## Issue:
+
+* User cannot search exercises in progress screen
+
+---
+
+## Requirements:
+
+### Add Search Bar
+
+* Place at top of Exercise Progress section
+* Placeholder:
+  “Search exercise...”
+
+---
+
+### Live Filtering
+
+* As user types:
+
+  * Filter exercises instantly
+* Show matching results
+
+Example:
+Typing “bar” → shows:
+
+* Barbell Curl
+* Barbell Row
+
+---
+
+### Default State
+
+* If search is empty:
+
+  * Show all exercises
+
+---
+
+### Selection Behavior
+
+When user selects an exercise:
+
+* Load:
+
+  * Progress graph
+  * Last session data
+  * Metrics
+
+---
+
+### UI Requirements
+
+* Clean iOS-style search bar
+* Smooth transitions
+* Highlight selected exercise
+
+---
+
+# ⚡ 3. Improve Graph Simplicity (Important)
+
+* Remove curved lines
+* Use simple straight lines
+* Show value labels on points
+* Highlight:
+
+  * First session
+  * Latest session
+
+---
+
+# 🎯 Final Goal
+
+User should be able to:
+
+* Search any exercise instantly
+* Always see a working graph
+* Understand progress within 2 seconds
+
+Focus on fixing visibility issues first, then improving usability.
