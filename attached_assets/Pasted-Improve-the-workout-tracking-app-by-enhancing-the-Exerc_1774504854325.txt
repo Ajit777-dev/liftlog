@@ -1,0 +1,199 @@
+Improve the workout tracking app by enhancing the Exercise Progress section with searchable exercise selection and a simplified, easy-to-understand graph.
+
+---
+
+# 🔍 1. Exercise Search & Selection (Core Feature)
+
+## 🎯 Goal
+
+User should be able to:
+
+* Quickly find any exercise
+* View its progress graph
+* Not be limited to a few visible tabs
+
+---
+
+## 🔎 Search Bar
+
+* Add a search bar at the top of the Exercise Progress section
+* Placeholder:
+  “Search exercise...”
+
+---
+
+## ⚡ Live Search
+
+* As user types:
+
+  * Filter exercises in real-time
+* Show matching results instantly
+
+Example:
+Typing “bar” shows:
+
+* Barbell Curl
+* Barbell Row
+
+---
+
+## 📋 Exercise List
+
+* If search is empty:
+
+  * Show all exercises
+* Display as:
+
+  * Scrollable list OR chips
+
+---
+
+## 👆 Selection Behavior
+
+When user selects an exercise:
+
+* Load:
+
+  * Progress graph
+  * Last session details
+  * Intensity data
+
+---
+
+## 🧠 Optional Enhancements
+
+* Show recently used exercises at top
+* Allow favorite/pinned exercises
+
+---
+
+## 🎨 UI Requirements
+
+* Clean iOS-style design
+* Smooth transitions
+* Highlight selected exercise
+* Touch-friendly list items
+
+---
+
+## ⚡ Performance
+
+* Instant filtering
+* No lag with large exercise lists
+
+---
+
+# 📊 2. Simplified Graph UX (High Priority Fix)
+
+## 🎯 Goal
+
+User should instantly understand:
+
+* Am I improving or declining?
+* What is my current performance?
+
+---
+
+## 📈 Graph Type
+
+* Use simple **line chart**
+* Remove curved/smooth lines
+* Use straight lines between points
+
+---
+
+## 📅 X-Axis Fix
+
+* Use:
+
+  * Unique dates OR
+  * Session numbers
+* Do NOT repeat same date multiple times
+
+---
+
+## 🚫 Data Cleaning
+
+* Do not display sessions with 0 values
+* Skip empty sessions OR show “No data”
+
+---
+
+## 🔢 Show Values Clearly
+
+* Display values near each data point
+* Example:
+
+  * 850
+  * 920
+
+---
+
+## ⭐ Highlight Key Points
+
+* Highlight:
+
+  * First session (start)
+  * Latest session (current)
+
+---
+
+## 📊 Summary Above Graph
+
+Show clear improvement:
+
+* % increase or decrease
+* Absolute change
+
+Example:
+
+* “+15% intensity since 24 Mar”
+* “-120 points drop”
+
+---
+
+## 📉 Reduce Metric Overload
+
+Main tabs should be:
+
+* Intensity
+* Reps
+* Weight
+
+Hide:
+
+* Sets
+* Volume (secondary)
+
+---
+
+## 🎯 Improve “Beat Today” Section
+
+Replace unclear message with:
+
+Last:
+
+* 90kg × 10
+
+Target:
+
+* 90kg × 11 OR 92.5kg
+
+---
+
+## 🎨 UI Improvements
+
+* Clean, minimal layout
+* Easy to read during workouts
+* No unnecessary visual clutter
+
+---
+
+## 🎯 Final Goal
+
+User should understand within 2 seconds:
+
+* “Am I getting stronger?”
+* “What should I beat today?”
+
+Focus on clarity, speed, and usability.
