@@ -104,6 +104,59 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string, range: Rang
   return Array.from(deduped.values());
 }
 
+// ─── Compact Data Summary (for 1-2 data points) ─────────────────────────────
+
+function CompactDataSummary({ points, metric }: { points: SessionPoint[]; metric: Metric }) {
+  const cfg = METRIC_CONFIG[metric];
+  
+  if (points.length === 0) return null;
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  const firstVal = getMetricValue(first, metric);
+  const lastVal = getMetricValue(last, metric);
+  const delta = lastVal - firstVal;
+  const isImproved = delta > 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Start</p>
+          <p className="text-sm font-bold" style={{ color: cfg.color }}>
+            {fmtVal(firstVal, metric)} <span className="text-xs font-normal opacity-60">{METRIC_CONFIG[metric].unit}</span>
+          </p>
+          <p className="text-[9px] text-muted-foreground mt-1">{first.dateLabel}</p>
+        </div>
+        <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2.5">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-0.5">Latest</p>
+          <p className="text-sm font-bold" style={{ color: cfg.color }}>
+            {fmtVal(lastVal, metric)} <span className="text-xs font-normal opacity-60">{METRIC_CONFIG[metric].unit}</span>
+          </p>
+          <p className="text-[9px] text-muted-foreground mt-1">{last.dateLabel}</p>
+        </div>
+      </div>
+      {points.length > 1 && delta !== 0 && (
+        <div
+          className="rounded-lg px-3 py-2 flex items-center justify-between"
+          style={{
+            background: isImproved ? "hsl(142 72% 45% / 0.1)" : "hsl(0 84% 60% / 0.1)",
+            border: `1px solid ${isImproved ? "hsl(142 72% 45% / 0.3)" : "hsl(0 84% 60% / 0.3)"}`,
+          }}
+        >
+          <span className="text-xs text-muted-foreground">Change</span>
+          <span
+            className="text-sm font-bold font-mono"
+            style={{ color: isImproved ? "hsl(142 72% 45%)" : "hsl(0 84% 60%)" }}
+          >
+            {isImproved ? "↑" : "↓"} {fmtVal(Math.abs(delta), metric)}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SVG Line Chart ──────────────────────────────────────────────────────────
 
 function LineChart({
@@ -124,99 +177,95 @@ function LineChart({
     );
   }
 
+  // Render compact view for very small datasets (1-2 points)
+  if (points.length <= 2) {
+    return <CompactDataSummary points={points} metric={metric} />;
+  }
+
   try {
+    // Dynamic sizing based on data density
+    const isSmallDataset = points.length <= 5;
     const W = 320;
-    const H = 170;
-    const PAD = { top: 28, right: 22, bottom: 30, left: 42 };
+    const H = isSmallDataset ? 110 : 170;
+    const PAD = { top: 24, right: 20, bottom: 28, left: 40 };
     const chartW = W - PAD.left - PAD.right;
     const chartH = H - PAD.top - PAD.bottom;
     const cfg = METRIC_CONFIG[metric];
 
-  const values = points.map((p) => getMetricValue(p, metric));
-  const numericValues = values.filter((v) => Number.isFinite(v));
-  if (!numericValues.length) {
-    return (
-      <div className="flex justify-center items-center py-6 text-sm text-muted-foreground">
-        No valid workout data available for selected exercise.
-      </div>
-    );
-  }
+    const values = points.map((p) => getMetricValue(p, metric));
+    const numericValues = values.filter((v) => Number.isFinite(v));
+    if (!numericValues.length) {
+      return (
+        <div className="flex justify-center items-center py-6 text-sm text-muted-foreground">
+          No valid workout data available for selected exercise.
+        </div>
+      );
+    }
 
-  const dataMin = Math.min(...numericValues);
-  const dataMax = Math.max(...numericValues);
-  let minVal = 0;
-  let maxVal = Math.max(dataMax, 1);
-  let span = maxVal - minVal;
+    const dataMin = Math.min(...numericValues);
+    const dataMax = Math.max(...numericValues);
+    let minVal = 0;
+    let maxVal = Math.max(dataMax, 1);
+    let span = maxVal - minVal;
 
-  // Special Y-axis handling for volume chart
-  let yTicks: number[];
-  if (metric === "volume") {
-    // Use recharts-like YAxis: domain [0, 'auto'], tickCount=5, clean ticks
-    minVal = 0;
-    const niceMax = Math.max(100, Math.ceil(maxVal / 100) * 100);
-    const tickCount = 5;
-    let step = niceMax / (tickCount - 1);
-    // Ensure step is >= 20 and round in sensible increments:
-    step = Math.max(20, Math.round(step / 50) * 50 || Math.ceil(step));
-    const adjustedMax = step * (tickCount - 1);
-    yTicks = Array.from({ length: tickCount }, (_, i) => i * step);
-    maxVal = adjustedMax;
+    // Simple Y-axis tick generation
+    let yTicks: number[];
+    const tickCount = isSmallDataset ? 3 : 5;
+    maxVal = Math.max(dataMax, minVal + 1);
     span = maxVal - minVal;
     if (span <= 0) {
       span = 1;
       maxVal = minVal + span;
-      yTicks = [0, 1, 2, 3, 4];
     }
-  } else {
-    maxVal = Math.max(dataMax, minVal + 1);
-    span = maxVal - minVal;
-    yTicks = Array.from({ length: 6 }, (_, i) => minVal + (span / 5) * i);
-  }
+    yTicks = Array.from({ length: tickCount }, (_, i) => minVal + (span / (tickCount - 1)) * i);
 
-  const cx = (i: number) => PAD.left + (i / Math.max(points.length - 1, 1)) * chartW;
-  const cy = (value: number) => {
-    const clamped = Math.min(Math.max(value, minVal), maxVal);
-    if (span <= 0) return PAD.top + chartH;
-    return PAD.top + chartH - ((clamped - minVal) / span) * chartH;
-  };
+    const cx = (i: number) => PAD.left + (i / Math.max(points.length - 1, 1)) * chartW;
+    const cy = (value: number) => {
+      const clamped = Math.min(Math.max(value, minVal), maxVal);
+      if (span <= 0) return PAD.top + chartH;
+      return PAD.top + chartH - ((clamped - minVal) / span) * chartH;
+    };
 
-  // Straight-line path
-  const linePath = points.length === 1
-    ? (() => {
-      const x = cx(0);
-      const y = cy(getMetricValue(points[0], metric));
-      return `M ${x} ${y} L ${x + 1} ${y}`;
-    })()
-    : points
-      .map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(getMetricValue(p, metric))}`)
-      .join(" ");
+    // Straight-line path
+    const linePath = points.length === 1
+      ? (() => {
+        const x = cx(0);
+        const y = cy(getMetricValue(points[0], metric));
+        return `M ${x} ${y} L ${x + 1} ${y}`;
+      })()
+      : points
+        .map((p, i) => `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(getMetricValue(p, metric))}`)
+        .join(" ");
 
-  const areaPath = points.length > 1
-    ? linePath + ` L ${cx(points.length - 1)} ${PAD.top + chartH} L ${cx(0)} ${PAD.top + chartH} Z`
-    : "";
+    const areaPath = points.length > 1
+      ? linePath + ` L ${cx(points.length - 1)} ${PAD.top + chartH} L ${cx(0)} ${PAD.top + chartH} Z`
+      : "";
 
-  // Y ticks
-  // Fallback y axis ticks for non-volume metrics
-  const ticks = yTicks;
+    // Y ticks
+    // Y ticks debug
+    const ticks = yTicks;
 
-  // X labels: show first, last, and a limited number of intermediate ticks to avoid overlap
-  const maxXAxisTicks = 5;
-  const xTickStep = Math.max(1, Math.floor((points.length - 1) / (maxXAxisTicks - 1)));
-  const xTickIndices = new Set<number>();
-  xTickIndices.add(0);
-  xTickIndices.add(points.length - 1);
-  for (let i = xTickStep; i < points.length - 1; i += xTickStep) {
-    xTickIndices.add(i);
-  }
+    // X-axis labels: show first, last, and a limited number of intermediate ticks
+    const maxXAxisTicks = isSmallDataset ? 3 : 5;
+    const xTickStep = Math.max(1, Math.floor((points.length - 1) / (maxXAxisTicks - 1)));
+    const xTickIndices = new Set<number>();
+    xTickIndices.add(0);
+    if (points.length > 1) xTickIndices.add(points.length - 1);
+    for (let i = xTickStep; i < points.length - 1; i += xTickStep) {
+      xTickIndices.add(i);
+    }
 
-  const activeIndex = hoveredIndex !== null ? hoveredIndex : selectedIndex;
-  const activePoint = activeIndex !== null ? points[activeIndex] : null;
-  const activeValue = activePoint ? getMetricValue(activePoint, metric) : 0;
+    const activeIndex = hoveredIndex !== null ? hoveredIndex : selectedIndex;
+    const activePoint = activeIndex !== null ? points[activeIndex] : null;
+    const activeValue = activePoint ? getMetricValue(activePoint, metric) : 0;
 
-  const rawTooltipX = activePoint && activeIndex !== null ? cx(activeIndex) : 0;
-  const rawTooltipY = activePoint ? cy(activeValue) : 0;
-  const tooltipX = Math.min(Math.max((rawTooltipX / W) * 100, 6), 94);
-  const tooltipY = Math.min(Math.max((rawTooltipY / H) * 100, 8), 85);
+    const rawTooltipX = activePoint && activeIndex !== null ? cx(activeIndex) : 0;
+    const rawTooltipY = activePoint ? cy(activeValue) : 0;
+    const isRightSide = rawTooltipX > PAD.left + chartW * 0.65;
+    const tooltipX = isRightSide
+      ? Math.max(10, ((rawTooltipX - 60) / W) * 100)
+      : Math.min(90, ((rawTooltipX + 60) / W) * 100);
+    const tooltipY = Math.max(8, ((rawTooltipY - 60) / H) * 100);
 
   return (
     <div className="relative">
@@ -228,187 +277,185 @@ function LineChart({
           </linearGradient>
         </defs>
 
-      {/* Grid lines */}
-      {yTicks.map((tick, ti) => (
-        <g key={ti}>
-          <line x1={PAD.left} y1={cy(tick)} x2={PAD.left + chartW} y2={cy(tick)}
-            stroke="hsl(var(--border))" strokeWidth="0.8" strokeDasharray="4 4" />
-          <text x={PAD.left - 8} y={cy(tick) + 3.5}
-            fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="end">
-            {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : Math.round(tick)}
-          </text>
-        </g>
-      ))}
+        {/* Grid lines */}
+        {yTicks.map((tick, ti) => (
+          <g key={ti}>
+            <line x1={PAD.left} y1={cy(tick)} x2={PAD.left + chartW} y2={cy(tick)}
+              stroke="hsl(var(--border))" strokeWidth="0.8" strokeDasharray="4 4" />
+            <text x={PAD.left - 8} y={cy(tick) + 3.5}
+              fontSize="10" fill="hsl(var(--muted-foreground))" textAnchor="end">
+              {tick >= 1000 ? `${(tick / 1000).toFixed(1)}k` : Math.round(tick)}
+            </text>
+          </g>
+        ))}
 
-      {/* Area */}
-      {points.length > 0 && <path d={areaPath} fill={`url(#area-${metric})`} />}
+        {/* Area */}
+        {points.length > 0 && <path d={areaPath} fill={`url(#area-${metric})`} />}
 
-      {/* Straight line */}
-      {points.length >= 1 && (
-        <path d={linePath} fill="none" stroke={cfg.color} strokeWidth="2.5"
-          strokeLinecap="round" strokeLinejoin="round" />
-      )}
+        {/* Straight line */}
+        {points.length >= 1 && (
+          <path d={linePath} fill="none" stroke={cfg.color} strokeWidth="2.5"
+            strokeLinecap="round" strokeLinejoin="round" />
+        )}
 
-      {/* X-axis base line */}
-      <line
-        x1={PAD.left}
-        y1={PAD.top + chartH}
-        x2={PAD.left + chartW}
-        y2={PAD.top + chartH}
-        stroke="hsl(var(--muted-foreground))"
-        strokeWidth="1"
-        opacity="0.6"
-      />
-
-      {/* X-axis labels */}
-      {points.map((p, i) => {
-        if (!xTickIndices.has(i)) return null;
-        const label = i === 0 ? "Start" : i === points.length - 1 ? "Latest" : p.dateLabel;
-        const isLatest = i === points.length - 1;
-        return (
-          <text key={i}
-            x={cx(i)}
-            y={H - 4}
-            fontSize="8"
-            fill={isLatest ? "hsl(38 95% 55%)" : "hsl(var(--muted-foreground))"}
-            textAnchor="end"
-            transform={`translate(${cx(i)}, ${H - 4}) rotate(-45)`}
-            dominantBaseline="middle"
-            fontWeight={isLatest ? "bold" : "normal"}
-          >
-            {label}
-          </text>
-        );
-      })}
-      {points.length > 0 && (
-        <rect
-          x={PAD.left}
-          y={PAD.top + chartH + 4}
-          width={chartW}
-          height={24}
-          fill="transparent"
+        {/* X-axis base line */}
+        <line
+          x1={PAD.left}
+          y1={PAD.top + chartH}
+          x2={PAD.left + chartW}
+          y2={PAD.top + chartH}
+          stroke="hsl(var(--muted-foreground))"
+          strokeWidth="1"
+          opacity="0.6"
         />
-      )}
 
-      {/* Data points with value labels */}
-      {points.map((p, i) => {
-        const x        = cx(i);
-        const y        = cy(getMetricValue(p, metric));
-        const v        = getMetricValue(p, metric);
-        const isFirst  = i === 0;
-        const isLast   = i === points.length - 1;
-        const isSelect = selectedIndex === i;
-        const prevV    = i > 0 ? getMetricValue(points[i - 1], metric) : null;
-        const up       = prevV !== null && v > prevV;
-        const down     = prevV !== null && v < prevV;
-        const label    = fmtVal(v, metric);
-
-        // Badge placement for endpoint delta: avoid going off-screen on right edge.
-        const badgeOffset = x > PAD.left + chartW - 46 ? -42 : 7;
-
-        const pointFill = isSelect
-          ? cfg.color
-          : isFirst || isLast
-          ? cfg.color
-          : "hsl(var(--muted-foreground))";
-
-        const pointStroke = isSelect
-          ? "white"
-          : isFirst || isLast
-          ? cfg.color
-          : "hsl(var(--muted-foreground))";
-
-        // Value label position: above point, avoid top clip
-        const labelY = y - 10 < PAD.top + 4 ? y + 18 : y - 10;
-
-        return (
-          <g
-            key={i}
-            onClick={() => onSelect(i)}
-            onMouseEnter={() => setHoveredIndex(i)}
-            onMouseLeave={() => setHoveredIndex(null)}
-            style={{ cursor: "pointer" }}
-          >
-            {/* Tap target */}
-            <circle cx={x} cy={y} r={18} fill="transparent" />
-
-            {/* First / Last rings */}
-            {isFirst && (
-              <circle cx={x} cy={y} r={8} fill="transparent"
-                stroke={cfg.color} strokeWidth="1.5" opacity="0.35" />
-            )}
-            {isLast && !isSelect && (
-              <circle cx={x} cy={y} r={8} fill="transparent"
-                stroke={cfg.color} strokeWidth="2" opacity="0.6" />
-            )}
-            {isSelect && (
-              <circle cx={x} cy={y} r={10} fill="transparent"
-                stroke={cfg.color} strokeWidth="2" opacity="0.9" />
-            )}
-
-            {/* Dot */}
-            <circle cx={x} cy={y}
-              r={isSelect ? 5.5 : (isFirst || isLast) ? 5 : 4}
-              fill={pointFill}
-              stroke={pointStroke}
-              strokeWidth={isFirst || isLast || isSelect ? 1.5 : 1}
-            />
-
-            {/* Value label */}
-            <text x={x} y={labelY}
-              fontSize={isFirst || isLast ? "9" : "8"}
-              fill={isFirst || isLast ? cfg.color : "hsl(var(--muted-foreground))"}
-              textAnchor="middle"
-              fontWeight={isFirst || isLast ? "bold" : "normal"}
+        {/* X-axis labels */}
+        {points.map((p, i) => {
+          if (!xTickIndices.has(i)) return null;
+          const label = i === 0 ? "Start" : i === points.length - 1 ? "Latest" : p.dateLabel;
+          const isLatest = i === points.length - 1;
+          return (
+            <text key={i}
+              x={cx(i)}
+              y={H - 4}
+              fontSize="8"
+              fill={isLatest ? "hsl(38 95% 55%)" : "hsl(var(--muted-foreground))"}
+              textAnchor="end"
+              transform={`translate(${cx(i)}, ${H - 4}) rotate(-45)`}
+              dominantBaseline="middle"
+              fontWeight={isLatest ? "bold" : "normal"}
             >
               {label}
             </text>
+          );
+        })}
+        {points.length > 0 && (
+          <rect
+            x={PAD.left}
+            y={PAD.top + chartH + 4}
+            width={chartW}
+            height={24}
+            fill="transparent"
+          />
+        )}
 
-            {/* Delta badge on latest point */}
-            {isLast && prevV !== null && v !== prevV && (
-              <g>
-                <rect
-                  x={x + badgeOffset} y={y - 12} width={34} height={14}
-                  rx="4"
-                  fill={up ? "hsl(142 72% 40% / 0.95)" : "hsl(0 84% 55% / 0.95)"}
-                />
-                <text x={x + badgeOffset + 17} y={y - 2.5}
-                  fontSize="8" fill="white" textAnchor="middle" fontWeight="bold">
-                  {up ? "+" : ""}{
-                    metric === "intensity"
-                      ? (v - prevV).toFixed(0)
-                      : metric === "weight"
-                      ? (v - prevV).toFixed(1)
-                      : Math.round(v - prevV)
-                  }
-                </text>
-              </g>
-            )}
-          </g>
-        );
-      })}
-    </svg>
+        {/* Data points with value labels */}
+        {points.map((p, i) => {
+          const x        = cx(i);
+          const y        = cy(getMetricValue(p, metric));
+          const v        = getMetricValue(p, metric);
+          const isFirst  = i === 0;
+          const isLast   = i === points.length - 1;
+          const isSelect = selectedIndex === i;
+          const prevV    = i > 0 ? getMetricValue(points[i - 1], metric) : null;
+          const up       = prevV !== null && v > prevV;
+          const down     = prevV !== null && v < prevV;
+          const label    = fmtVal(v, metric);
 
-    {activePoint && (
-      <div
-        className="pointer-events-none absolute z-20 rounded-md border border-border bg-background/95 px-2 py-1 text-xs shadow-xl"
-        style={{
-          left: `${tooltipX}%`,
-          top: `${tooltipY}%`,
-          transform: "translate(-50%, -105%)",
-          minWidth: "90px",
-          maxWidth: "160px",
-        }}
-      >
-        <div className="text-foreground font-semibold">
-          {fmtVal(activeValue, metric)} {METRIC_CONFIG[metric].unit}
+          // Badge placement for endpoint delta: avoid going off-screen on right edge.
+          const badgeOffset = x > PAD.left + chartW - 46 ? -42 : 7;
+
+          const pointFill = isSelect
+            ? cfg.color
+            : isFirst || isLast
+            ? cfg.color
+            : "hsl(var(--muted-foreground))";
+
+          const pointStroke = isSelect
+            ? "white"
+            : isFirst || isLast
+            ? cfg.color
+            : "hsl(var(--muted-foreground))";
+
+          // Value label position: above point, avoid top clip
+          const labelY = y - 10 < PAD.top + 4 ? y + 18 : y - 10;
+
+          return (
+            <g
+              key={i}
+              onClick={() => onSelect(i)}
+              onMouseEnter={() => setHoveredIndex(i)}
+              onMouseLeave={() => setHoveredIndex(null)}
+              style={{ cursor: "pointer" }}
+            >
+              {/* Tap target */}
+              <circle cx={x} cy={y} r={18} fill="transparent" />
+
+              {/* First / Last rings */}
+              {isFirst && (
+                <circle cx={x} cy={y} r={8} fill="transparent"
+                  stroke={cfg.color} strokeWidth="1.5" opacity="0.35" />
+              )}
+              {isLast && !isSelect && (
+                <circle cx={x} cy={y} r={8} fill="transparent"
+                  stroke={cfg.color} strokeWidth="2" opacity="0.6" />
+              )}
+              {isSelect && (
+                <circle cx={x} cy={y} r={10} fill="transparent"
+                  stroke={cfg.color} strokeWidth="2" opacity="0.9" />
+              )}
+
+              {/* Dot */}
+              <circle cx={x} cy={y}
+                r={isSelect ? 5.5 : (isFirst || isLast) ? 5 : 4}
+                fill={pointFill}
+                stroke={pointStroke}
+                strokeWidth={isFirst || isLast || isSelect ? 1.5 : 1}
+              />
+
+              {/* Value label */}
+              <text x={x} y={labelY}
+                fontSize={isFirst || isLast ? "9" : "8"}
+                fill={isFirst || isLast ? cfg.color : "hsl(var(--muted-foreground))"}
+                textAnchor="middle"
+                fontWeight={isFirst || isLast ? "bold" : "normal"}
+              >
+                {label}
+              </text>
+
+              {/* Delta badge on latest point */}
+              {isLast && prevV !== null && v !== prevV && (
+                <g>
+                  <rect
+                    x={x + badgeOffset} y={y - 12} width={34} height={14}
+                    rx="4"
+                    fill={up ? "hsl(142 72% 40% / 0.95)" : "hsl(0 84% 55% / 0.95)"}
+                  />
+                  <text x={x + badgeOffset + 17} y={y - 2.5}
+                    fontSize="8" fill="white" textAnchor="middle" fontWeight="bold">
+                      {up ? "+" : ""}{
+                        metric === "intensity"
+                          ? (v - prevV).toFixed(0)
+                          : metric === "weight"
+                          ? (v - prevV).toFixed(1)
+                          : Math.round(v - prevV)
+                      }
+                    </text>
+                  </g>
+                )}
+            </g>
+          );
+        })}
+      </svg>
+
+      {activePoint && (
+        <div
+          className="pointer-events-none absolute z-20 rounded-lg border border-border/50 bg-background/98 backdrop-blur-sm px-3 py-2 shadow-lg"
+          style={{
+            left: `${tooltipX}%`,
+            top: `${tooltipY}%`,
+            transform: isRightSide ? "translate(-100%, -50%)" : "translate(0%, -50%)",
+          }}
+        >
+          <div className="text-xs font-bold" style={{ color: METRIC_CONFIG[metric].color }}>
+            {fmtVal(activeValue, metric)} <span className="text-[10px] font-normal opacity-75">{METRIC_CONFIG[metric].unit}</span>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            {activeIndex === 0 ? "Start" : activeIndex === points.length - 1 ? "Latest" : activePoint.dateLabel}
+          </div>
         </div>
-        <div className="text-[10px] text-muted-foreground">
-          {activeIndex === 0 ? "Start" : activeIndex === points.length - 1 ? "Latest" : activePoint.dateLabel}
-        </div>
-      </div>
-    )}
-  </div>
+      )}
+    </div>
   );
   } catch (error) {
     console.error("LineChart rendering error:", error);

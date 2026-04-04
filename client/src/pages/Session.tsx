@@ -20,7 +20,7 @@ import {
   getTemplate, getActiveSession, saveActiveSession, clearActiveSession,
   saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate
 } from "@/lib/storage";
-import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, WorkoutTemplate } from "@/lib/types";
+import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
 import { useTimer, useRestTimer, formatDuration, formatDate } from "@/lib/hooks";
 
 export default function Session() {
@@ -31,9 +31,11 @@ export default function Session() {
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
+  const [expandedCardio, setExpandedCardio] = useState<Set<string>>(new Set());
   const [showFinishDialog, setShowFinishDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
+  const [showAddCardio, setShowAddCardio] = useState(false);
   const [restTimerTarget, setRestTimerTarget] = useState(90);
   const { restSeconds, isResting, startRest, stopRest } = useRestTimer();
 
@@ -46,7 +48,7 @@ export default function Session() {
 
     const existing = getActiveSession();
     if (existing && existing.templateId === templateId) {
-      setSession(existing);
+      setSession({ ...existing, cardio: existing.cardio || [] });
       if (existing.exercises.length > 0) {
         setExpandedExercises(new Set([existing.exercises[0].id]));
       }
@@ -72,6 +74,7 @@ export default function Session() {
               completed: false,
             })),
           })),
+        cardio: [],
       };
       setSession(newSession);
       saveActiveSession(newSession);
@@ -215,6 +218,96 @@ export default function Session() {
     });
   };
 
+  const toggleCardioExpand = (id: string) => {
+    setExpandedCardio((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const addCardioExercise = (exerciseId: string, exerciseName: string, muscleGroup?: string) => {
+    updateSession((s) => ({
+      ...s,
+      cardio: [
+        ...s.cardio,
+        {
+          id: nanoid(),
+          exerciseId,
+          exerciseName,
+          muscleGroup,
+          entries: [{
+            id: nanoid(),
+            timeMinutes: 0,
+            timeSeconds: 0,
+            completed: false,
+          }],
+        },
+      ],
+    }));
+  };
+
+  const updateCardioEntry = (cardioId: string, entryId: string, updates: Partial<CardioEntry>) => {
+    updateSession((s) => ({
+      ...s,
+      cardio: s.cardio.map((c) =>
+        c.id !== cardioId
+          ? c
+          : {
+              ...c,
+              entries: c.entries.map((e) =>
+                e.id !== entryId ? e : { ...e, ...updates }
+              ),
+            }
+      ),
+    }));
+  };
+
+  const addCardioEntry = (cardioId: string) => {
+    updateSession((s) => ({
+      ...s,
+      cardio: s.cardio.map((c) => {
+        if (c.id !== cardioId) return c;
+        const lastEntry = c.entries[c.entries.length - 1];
+        const newEntry: CardioEntry = {
+          id: nanoid(),
+          timeMinutes: lastEntry?.timeMinutes ?? 0,
+          timeSeconds: lastEntry?.timeSeconds ?? 0,
+          completed: false,
+        };
+        return { ...c, entries: [...c.entries, newEntry] };
+      }),
+    }));
+  };
+
+  const removeCardioEntry = (cardioId: string, entryId: string) => {
+    updateSession((s) => ({
+      ...s,
+      cardio: s.cardio.map((c) =>
+        c.id !== cardioId
+          ? c
+          : { ...c, entries: c.entries.filter((e) => e.id !== entryId) }
+      ),
+    }));
+  };
+
+  const toggleCardioComplete = (cardioId: string, entryId: string) => {
+    updateSession((s) => ({
+      ...s,
+      cardio: s.cardio.map((c) =>
+        c.id !== cardioId
+          ? c
+          : {
+              ...c,
+              entries: c.entries.map((e) =>
+                e.id !== entryId ? e : { ...e, completed: !e.completed }
+              ),
+            }
+      ),
+    }));
+  };
+
   if (!session || !template) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -344,6 +437,39 @@ export default function Session() {
           <Plus className="w-4 h-4" />
           <span className="text-sm font-medium">Add exercise</span>
         </button>
+
+        {/* Cardio Section */}
+        {session.cardio.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-4">
+              Cardio
+            </h3>
+            <div className="flex flex-col gap-3">
+              {session.cardio.map((cardio, idx) => (
+                <CardioCard
+                  key={cardio.id}
+                  cardio={cardio}
+                  index={idx}
+                  expanded={expandedCardio.has(cardio.id)}
+                  onToggleExpand={() => toggleCardioExpand(cardio.id)}
+                  onUpdateEntry={(entryId, updates) => updateCardioEntry(cardio.id, entryId, updates)}
+                  onAddEntry={() => addCardioEntry(cardio.id)}
+                  onRemoveEntry={(entryId) => removeCardioEntry(cardio.id, entryId)}
+                  onToggleComplete={(entryId) => toggleCardioComplete(cardio.id, entryId)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Add Cardio */}
+        <button
+          onClick={() => setShowAddCardio(true)}
+          className="w-full rounded-xl border-2 border-dashed border-border py-4 flex items-center justify-center gap-2 text-muted-foreground hover-elevate transition-colors"
+        >
+          <Activity className="w-4 h-4" />
+          <span className="text-sm font-medium">Add cardio</span>
+        </button>
       </div>
 
       {/* Add Exercise Dialog */}
@@ -372,21 +498,31 @@ export default function Session() {
         />
       )}
 
+      {/* Add Cardio Dialog */}
+      {showAddCardio && (
+        <AddCardioDialog
+          existingExerciseIds={session.cardio.map((c) => c.exerciseId)}
+          onAdd={(exId, exName, muscleGroup) => {
+            addCardioExercise(exId, exName, muscleGroup);
+            setShowAddCardio(false);
+          }}
+          onClose={() => setShowAddCardio(false)}
+        />
+      )}
+
       {/* Finish Dialog */}
       <AlertDialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Finish Workout?</AlertDialogTitle>
+            <AlertDialogTitle>Save Workout?</AlertDialogTitle>
             <AlertDialogDescription>
-              {completedSets > 0
-                ? `You completed ${completedSets} sets with ${totalVolume.toFixed(0)} kg total volume in ${formatDuration(elapsed)}.`
-                : "You haven't logged any sets yet."}
+              Do you want to save this workout?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Keep Going</AlertDialogCancel>
+            <AlertDialogCancel>Don't Save</AlertDialogCancel>
             <AlertDialogAction onClick={finishWorkout} data-testid="button-confirm-finish">
-              Save Workout
+              Yes, Save
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -526,7 +662,7 @@ function ExerciseCard({
           <ExerciseProgressSummary exercise={exercise} lastData={lastData} />
 
           {/* Column headers */}
-          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 80px 44px" }}>
+          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 70px 44px" }}>
             <span />
             <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Weight</span>
             <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Reps</span>
@@ -575,6 +711,272 @@ function ExerciseCard({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Cardio Card ────────────────────────────────────────────────────────────
+
+interface CardioCardProps {
+  cardio: SessionCardio;
+  index: number;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onUpdateEntry: (entryId: string, updates: Partial<CardioEntry>) => void;
+  onAddEntry: () => void;
+  onRemoveEntry: (entryId: string) => void;
+  onToggleComplete: (entryId: string) => void;
+}
+
+function CardioCard({
+  cardio, index, expanded,
+  onToggleExpand, onUpdateEntry, onAddEntry, onRemoveEntry, onToggleComplete
+}: CardioCardProps) {
+  const completedEntries = cardio.entries.filter((e) => e.completed).length;
+  const totalEntries = cardio.entries.length;
+  const allDone = completedEntries === totalEntries && totalEntries > 0;
+
+  return (
+    <div
+      className={`rounded-xl border bg-card overflow-hidden transition-all ${
+        allDone ? "border-accent/30" : "border-card-border"
+      }`}
+    >
+      {/* Cardio Header */}
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+        onClick={onToggleExpand}
+      >
+        {/* Progress indicator */}
+        <div className="relative w-9 h-9 flex-shrink-0">
+          <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+            {totalEntries > 0 && (
+              <circle
+                cx="18" cy="18" r="15" fill="none"
+                stroke="hsl(var(--accent))"
+                strokeWidth="3"
+                strokeDasharray={`${(completedEntries / totalEntries) * 94.2} 94.2`}
+                strokeLinecap="round"
+              />
+            )}
+          </svg>
+          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
+            {completedEntries}/{totalEntries}
+          </span>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm leading-tight truncate">{cardio.exerciseName}</h3>
+          {cardio.muscleGroup && (
+            <p className="text-[11px] text-muted-foreground">{cardio.muscleGroup}</p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {allDone && <Check className="w-4 h-4 text-accent" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+        </div>
+      </button>
+
+      {/* Entries */}
+      {expanded && (
+        <div className="px-4 pb-4 flex flex-col gap-2">
+          {/* Column headers */}
+          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 1fr 44px" }}>
+            <span />
+            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Time</span>
+            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Distance</span>
+            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Calories</span>
+            <span />
+          </div>
+
+          {cardio.entries.map((entry, entryIdx) => (
+            <CardioEntryRow
+              key={entry.id}
+              entry={entry}
+              index={entryIdx}
+              onUpdate={(updates) => onUpdateEntry(entry.id, updates)}
+              onRemove={() => onRemoveEntry(entry.id)}
+              onToggleComplete={() => onToggleComplete(entry.id)}
+            />
+          ))}
+
+          {/* Add entry / Complete all buttons */}
+          <div className="flex gap-2 mt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAddEntry}
+              className="flex-1 gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Entry
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Cardio Entry Row ───────────────────────────────────────────────────────
+
+interface CardioEntryRowProps {
+  entry: CardioEntry;
+  index: number;
+  onUpdate: (updates: Partial<CardioEntry>) => void;
+  onRemove: () => void;
+  onToggleComplete: () => void;
+}
+
+function CardioEntryRow({ entry, index, onUpdate, onRemove, onToggleComplete }: CardioEntryRowProps) {
+  return (
+    <div
+      className={`grid gap-2 items-center rounded-lg px-2 py-2 transition-all ${
+        entry.completed ? "bg-accent/8 border border-accent/20" : "bg-muted/30"
+      }`}
+      style={{ gridTemplateColumns: "28px 1fr 1fr 1fr 44px" }}
+    >
+      {/* Entry number */}
+      <div className="flex items-center justify-center">
+        <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
+          entry.completed ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+        }`}>
+          {index + 1}
+        </span>
+      </div>
+
+      {/* Time */}
+      <div className="flex gap-1">
+        <NumberInput
+          value={entry.timeMinutes}
+          step={1}
+          min={0}
+          suffix="m"
+          onChange={(v) => onUpdate({ timeMinutes: v })}
+          disabled={entry.completed}
+          testId={`input-time-minutes-${entry.id}`}
+        />
+        <NumberInput
+          value={entry.timeSeconds}
+          step={5}
+          min={0}
+          suffix="s"
+          onChange={(v) => onUpdate({ timeSeconds: v })}
+          disabled={entry.completed}
+          testId={`input-time-seconds-${entry.id}`}
+        />
+      </div>
+
+      {/* Distance */}
+      <NumberInput
+        value={entry.distance || 0}
+        step={0.1}
+        min={0}
+        suffix="km"
+        onChange={(v) => onUpdate({ distance: v || undefined })}
+        disabled={entry.completed}
+        testId={`input-distance-${entry.id}`}
+      />
+
+      {/* Calories */}
+      <NumberInput
+        value={entry.calories || 0}
+        step={10}
+        min={0}
+        suffix="cal"
+        onChange={(v) => onUpdate({ calories: v || undefined })}
+        disabled={entry.completed}
+        testId={`input-calories-${entry.id}`}
+      />
+
+      {/* Complete / Remove */}
+      <div className="flex items-center justify-center gap-1">
+        {!entry.completed ? (
+          <button
+            onClick={onToggleComplete}
+            className="w-8 h-8 rounded-full border-2 border-accent/40 flex items-center justify-center transition-all active:scale-90"
+          >
+            <Check className="w-4 h-4 text-accent/60" />
+          </button>
+        ) : (
+          <button
+            onClick={onToggleComplete}
+            className="w-8 h-8 rounded-full bg-accent flex items-center justify-center transition-all active:scale-90"
+          >
+            <Check className="w-4 h-4 text-accent-foreground" />
+          </button>
+        )}
+        {!entry.completed && (
+          <button
+            onClick={onRemove}
+            className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
+            title="Remove entry"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Add Cardio Dialog ──────────────────────────────────────────────────────
+
+function AddCardioDialog({
+  existingExerciseIds, onAdd, onClose
+}: {
+  existingExerciseIds: string[];
+  onAdd: (id: string, name: string, muscleGroup?: string) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const exercises = getExercises().filter(e => e.muscleGroup === "Cardio");
+  const filtered = exercises.filter(
+    (e) =>
+      e.name.toLowerCase().includes(search.toLowerCase()) &&
+      !existingExerciseIds.includes(e.id)
+  );
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-sm mx-4">
+        <DialogHeader>
+          <DialogTitle>Add Cardio Exercise</DialogTitle>
+        </DialogHeader>
+        <input
+          type="search"
+          placeholder="Search cardio exercises..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-primary"
+          autoFocus
+        />
+        <ScrollArea className="h-64">
+          <div className="flex flex-col gap-1 pr-2">
+            {filtered.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-8">No cardio exercises found</p>
+            ) : (
+              filtered.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-lg hover-elevate text-left bg-muted/30"
+                >
+                  <div>
+                    <p className="text-sm font-medium">{ex.name}</p>
+                    {ex.muscleGroup && (
+                      <p className="text-xs text-muted-foreground">{ex.muscleGroup}</p>
+                    )}
+                  </div>
+                  <Plus className="w-4 h-4 text-primary" />
+                </button>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -696,7 +1098,7 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
       className={`grid gap-2 items-center rounded-lg px-2 py-2 transition-all ${
         set.completed ? "bg-primary/8 border border-primary/20" : "bg-muted/30"
       }`}
-      style={{ gridTemplateColumns: "28px 1fr 1fr 80px 44px" }}
+      style={{ gridTemplateColumns: "28px 1fr 1fr 70px 44px" }}
       data-testid={`row-set-${set.id}`}
     >
       {/* Set number */}
@@ -763,11 +1165,11 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
         {!set.completed && (
           <button
             onClick={onRemove}
-            className="w-8 h-8 rounded-full border border-muted/60 flex items-center justify-center text-muted-foreground hover:bg-muted/30 transition-colors"
+            className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
             data-testid={`button-remove-set-${set.id}`}
             title="Remove set"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
         )}
       </div>

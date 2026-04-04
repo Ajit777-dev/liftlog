@@ -14,6 +14,7 @@ import {
 } from "@/lib/storage";
 import type { WorkoutTemplate } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
+import { LiftLogLogo } from "@/components/LiftLogLogo";
 
 const TEMPLATE_COLORS = [
   "#3b82f6", "#f97316", "#22c55e", "#a855f7",
@@ -79,7 +80,7 @@ export default function Home() {
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Dumbbell className="w-5 h-5 text-primary" />
+              <LiftLogLogo size={20} />
               <h1 className="text-xl font-bold tracking-tight">LiftLog</h1>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">

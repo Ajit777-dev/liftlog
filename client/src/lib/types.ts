@@ -9,12 +9,31 @@ export interface WorkoutSet {
   completed: boolean;
 }
 
+export interface CardioEntry {
+  id: string;
+  timeMinutes: number;
+  timeSeconds: number;
+  distance?: number; // in km or miles
+  calories?: number;
+  weight?: number; // for weighted cardio
+  completed: boolean;
+}
+
 export interface SessionExercise {
   id: string;
   exerciseId: string;
   exerciseName: string;
   muscleGroup?: string;
   sets: WorkoutSet[];
+  notes?: string;
+}
+
+export interface SessionCardio {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  muscleGroup?: string;
+  entries: CardioEntry[];
   notes?: string;
 }
 
@@ -26,6 +45,7 @@ export interface WorkoutSession {
   finishedAt?: number;
   durationSeconds?: number;
   exercises: SessionExercise[];
+  cardio: SessionCardio[];
   notes?: string;
 }
 

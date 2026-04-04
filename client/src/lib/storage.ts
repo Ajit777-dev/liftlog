@@ -350,6 +350,10 @@ export function seedIfEmpty(): void {
     { id: "ex18", name: "Cable Crunch", muscleGroup: "Core", createdAt: Date.now() },
     { id: "ex19", name: "Deadlift", muscleGroup: "Back", createdAt: Date.now() },
     { id: "ex20", name: "Leg Curl", muscleGroup: "Legs", createdAt: Date.now() },
+    { id: "ex21", name: "Running", muscleGroup: "Cardio", createdAt: Date.now() },
+    { id: "ex22", name: "Cycling", muscleGroup: "Cardio", createdAt: Date.now() },
+    { id: "ex23", name: "Walking", muscleGroup: "Cardio", createdAt: Date.now() },
+    { id: "ex24", name: "Swimming", muscleGroup: "Cardio", createdAt: Date.now() },
   ];
   save(KEYS.exercises, exs);
 
@@ -464,6 +468,7 @@ export function seedIfEmpty(): void {
           ],
         },
       ],
+      cardio: [],
     },
     {
       id: "s2",
@@ -508,6 +513,7 @@ export function seedIfEmpty(): void {
           ],
         },
       ],
+      cardio: [],
     },
     {
       id: "s3",
@@ -541,6 +547,7 @@ export function seedIfEmpty(): void {
           ],
         },
       ],
+      cardio: [],
     },
   ];
   save(KEYS.sessions, sessions);
