@@ -1,9 +1,8 @@
 import { Link, useLocation } from "wouter";
-import { Dumbbell, History, BookOpen, BarChart2 } from "lucide-react";
+import { Dumbbell, BookOpen, BarChart2 } from "lucide-react";
 
 const NAV_ITEMS = [
   { href: "/", icon: Dumbbell, label: "Workout" },
-  { href: "/history", icon: History, label: "History" },
   { href: "/exercises", icon: BookOpen, label: "Exercises" },
   { href: "/progress", icon: BarChart2, label: "Progress" },
 ];

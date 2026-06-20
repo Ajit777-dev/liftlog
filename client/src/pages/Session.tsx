@@ -21,7 +21,7 @@ import {
   saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
-import { useTimer, useRestTimer, formatDuration, formatDate } from "@/lib/hooks";
+import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight } from "@/lib/hooks";
 
 export default function Session() {
   const params = useParams<{ id: string }>();
@@ -182,7 +182,7 @@ export default function Session() {
     };
     saveSession(finished);
     clearActiveSession();
-    navigate("/history");
+    navigate("/progress");
   };
 
   const cancelWorkout = () => {
@@ -639,36 +639,7 @@ function ExerciseCard({
       {/* Sets */}
       {expanded && (
         <div className="px-4 pb-4 flex flex-col gap-2">
-          {/* Previous session header */}
-          {lastData && (
-            <div
-              className="rounded-lg px-3 py-2 mb-1"
-              style={{ background: "hsl(217 91% 55% / 0.08)", border: "1px solid hsl(217 91% 55% / 0.15)" }}
-            >
-              <p className="text-[11px] font-semibold text-primary mb-1.5 flex items-center gap-1">
-                <Clock className="w-3 h-3" /> Last session ({formatDate(lastData.date)})
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {lastData.sets.filter(s => s.completed).map((s, i) => (
-                  <span key={i} className="text-[11px] text-primary/80 bg-primary/10 px-2 py-0.5 rounded-full font-mono">
-                    {s.weight}kg × {s.reps}{s.partialReps ? `+${s.partialReps}p` : ""}{s.type !== "normal" ? ` (${s.type[0].toUpperCase()})` : ""}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Strength progress delta (vs last session, based on completed sets) */}
           <ExerciseProgressSummary exercise={exercise} lastData={lastData} />
-
-          {/* Column headers */}
-          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 70px 44px" }}>
-            <span />
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Weight</span>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Reps</span>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Type</span>
-            <span />
-          </div>
 
           {exercise.sets.map((set, setIdx) => (
             <SetRow
@@ -781,15 +752,6 @@ function CardioCard({
       {/* Entries */}
       {expanded && (
         <div className="px-4 pb-4 flex flex-col gap-2">
-          {/* Column headers */}
-          <div className="grid gap-2 mb-1" style={{ gridTemplateColumns: "28px 1fr 1fr 1fr 44px" }}>
-            <span />
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Time</span>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Distance</span>
-            <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">Calories</span>
-            <span />
-          </div>
-
           {cardio.entries.map((entry, entryIdx) => (
             <CardioEntryRow
               key={entry.id}
@@ -832,91 +794,95 @@ interface CardioEntryRowProps {
 function CardioEntryRow({ entry, index, onUpdate, onRemove, onToggleComplete }: CardioEntryRowProps) {
   return (
     <div
-      className={`grid gap-2 items-center rounded-lg px-2 py-2 transition-all ${
+      className={`rounded-lg px-3 py-3 transition-all ${
         entry.completed ? "bg-accent/8 border border-accent/20" : "bg-muted/30"
       }`}
-      style={{ gridTemplateColumns: "28px 1fr 1fr 1fr 44px" }}
     >
-      {/* Entry number */}
-      <div className="flex items-center justify-center">
+      {/* Header: entry number + actions */}
+      <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
-          entry.completed ? "bg-accent text-accent-foreground" : "text-muted-foreground"
+          entry.completed ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
         }`}>
           {index + 1}
         </span>
-      </div>
-
-      {/* Time */}
-      <div className="flex gap-1">
-        <NumberInput
-          value={entry.timeMinutes}
-          step={1}
-          min={0}
-          suffix="m"
-          onChange={(v) => onUpdate({ timeMinutes: v })}
-          disabled={entry.completed}
-          testId={`input-time-minutes-${entry.id}`}
-        />
-        <NumberInput
-          value={entry.timeSeconds}
-          step={5}
-          min={0}
-          suffix="s"
-          onChange={(v) => onUpdate({ timeSeconds: v })}
-          disabled={entry.completed}
-          testId={`input-time-seconds-${entry.id}`}
-        />
-      </div>
-
-      {/* Distance */}
-      <NumberInput
-        value={entry.distance || 0}
-        step={0.1}
-        min={0}
-        suffix="km"
-        onChange={(v) => onUpdate({ distance: v || undefined })}
-        disabled={entry.completed}
-        testId={`input-distance-${entry.id}`}
-      />
-
-      {/* Calories */}
-      <NumberInput
-        value={entry.calories || 0}
-        step={10}
-        min={0}
-        suffix="cal"
-        onChange={(v) => onUpdate({ calories: v || undefined })}
-        disabled={entry.completed}
-        testId={`input-calories-${entry.id}`}
-      />
-
-      {/* Complete / Remove */}
-      <div className="flex items-center justify-center gap-1">
-        {!entry.completed ? (
+        <div className="flex items-center gap-2">
           <button
             onClick={onToggleComplete}
-            className="w-8 h-8 rounded-full border-2 border-accent/40 flex items-center justify-center transition-all active:scale-90"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+              entry.completed ? "bg-accent" : "border-2 border-accent/40"
+            }`}
+            title={entry.completed ? "Mark not done" : "Mark done"}
           >
-            <Check className="w-4 h-4 text-accent/60" />
+            <Check className={`w-4 h-4 ${entry.completed ? "text-accent-foreground" : "text-accent/60"}`} />
           </button>
-        ) : (
-          <button
-            onClick={onToggleComplete}
-            className="w-8 h-8 rounded-full bg-accent flex items-center justify-center transition-all active:scale-90"
-          >
-            <Check className="w-4 h-4 text-accent-foreground" />
-          </button>
-        )}
-        {!entry.completed && (
-          <button
-            onClick={onRemove}
-            className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
-            title="Remove entry"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+          {!entry.completed && (
+            <button
+              onClick={onRemove}
+              className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
+              title="Remove entry"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Minutes / Seconds aligned with Distance / Calories in one 2-col grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <FieldBox label="Minutes">
+          <NumberInput
+            value={entry.timeMinutes}
+            step={1}
+            min={0}
+            suffix="m"
+            onChange={(v) => onUpdate({ timeMinutes: v })}
+            disabled={entry.completed}
+            testId={`input-time-minutes-${entry.id}`}
+          />
+        </FieldBox>
+        <FieldBox label="Seconds">
+          <NumberInput
+            value={entry.timeSeconds}
+            step={5}
+            min={0}
+            suffix="s"
+            onChange={(v) => onUpdate({ timeSeconds: v })}
+            disabled={entry.completed}
+            testId={`input-time-seconds-${entry.id}`}
+          />
+        </FieldBox>
+        <FieldBox label="Distance">
+          <NumberInput
+            value={entry.distance || 0}
+            step={0.1}
+            min={0}
+            suffix="km"
+            onChange={(v) => onUpdate({ distance: v || undefined })}
+            disabled={entry.completed}
+            testId={`input-distance-${entry.id}`}
+          />
+        </FieldBox>
+        <FieldBox label="Calories">
+          <NumberInput
+            value={entry.calories || 0}
+            step={10}
+            min={0}
+            suffix="cal"
+            onChange={(v) => onUpdate({ calories: v || undefined })}
+            disabled={entry.completed}
+            testId={`input-calories-${entry.id}`}
+          />
+        </FieldBox>
+      </div>
+    </div>
+  );
+}
+
+function FieldBox({ label, children, bare }: { label: string; children: React.ReactNode; bare?: boolean }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider text-center">{label}</span>
+      {bare ? children : <div className="rounded-md bg-background/40 border border-border/40 py-1">{children}</div>}
     </div>
   );
 }
@@ -994,58 +960,41 @@ function ExerciseProgressSummary({
 
   const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
   const totalPartial = completedSets.reduce((sum, s) => sum + (s.partialReps ?? 0), 0);
-  const bestWeight = Math.max(...completedSets.map((s) => s.weight));
-  const assistedCount = completedSets.filter((s) => s.type === "assisted").length;
-  const failureCount = completedSets.filter((s) => s.type === "failure").length;
+  const intensity = Math.round(calcIntensity(completedSets));
+  const bestWeight = topWeight(completedSets);
 
-  let weightDelta: number | null = null;
-  let repsDelta: number | null = null;
-
-  if (lastData) {
-    const lastCompleted = lastData.sets.filter((s) => s.completed);
-    if (lastCompleted.length > 0) {
-      const lastBestWeight = Math.max(...lastCompleted.map((s) => s.weight));
-      const lastTotalReps = lastCompleted.reduce((sum, s) => sum + s.reps, 0);
-      weightDelta = parseFloat((bestWeight - lastBestWeight).toFixed(2));
-      repsDelta = totalReps - lastTotalReps;
-    }
-  }
-
-  const hasImprovement = (weightDelta ?? 0) > 0 || (repsDelta ?? 0) > 0;
-  const hasDecline = (weightDelta ?? 0) < 0 || (repsDelta ?? 0) < 0;
+  // Compare against the same exercise's last session, when available.
+  const lastDone = lastData?.sets.filter((s) => s.completed) ?? [];
+  const lastIntensity = lastDone.length ? Math.round(calcIntensity(lastDone)) : null;
+  const lastWeight = lastDone.length ? topWeight(lastDone) : null;
+  const intDelta = lastIntensity !== null ? intensity - lastIntensity : null;
+  const wtDelta = lastWeight !== null ? bestWeight - lastWeight : null;
 
   return (
-    <div className="rounded-lg px-3 py-2 mb-1 bg-muted/40 border border-border/50">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        {/* Current totals */}
-        <div className="flex flex-wrap gap-2 text-[11px]">
-          <span className="font-medium text-foreground">
-            {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""} · {bestWeight}kg
-          </span>
-          {assistedCount > 0 && (
-            <span className="text-blue-400 font-medium">{assistedCount} assisted</span>
-          )}
-          {failureCount > 0 && (
-            <span className="text-destructive font-medium">{failureCount} to failure</span>
-          )}
-        </div>
+    <div className="rounded-lg px-3 py-2.5 mb-1 bg-muted/40 border border-border/50">
+      <div className="grid grid-cols-2 gap-2">
+        <SummaryStat label="Intensity" value={`${intensity}`} color="text-orange-400" delta={intDelta} />
+        <SummaryStat label="Top Weight" value={`${bestWeight}kg`} color="text-purple-400" delta={wtDelta} deltaUnit="kg" />
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2">
+        {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}
+      </p>
+    </div>
+  );
+}
 
-        {/* Delta vs last session */}
-        {(weightDelta !== null || repsDelta !== null) && (
-          <div className={`flex items-center gap-1.5 text-[11px] font-semibold ${
-            hasImprovement ? "text-green-500" : hasDecline ? "text-destructive" : "text-muted-foreground"
-          }`}>
-            {hasImprovement ? <TrendingUp className="w-3 h-3" /> : hasDecline ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
-            <span>
-              {weightDelta !== null && weightDelta !== 0 && (
-                <>{weightDelta > 0 ? "+" : ""}{weightDelta}kg{repsDelta !== null && repsDelta !== 0 ? ", " : ""}</>
-              )}
-              {repsDelta !== null && repsDelta !== 0 && (
-                <>{repsDelta > 0 ? "+" : ""}{repsDelta} reps</>
-              )}
-              {weightDelta === 0 && repsDelta === 0 && "Same as last time"}
-            </span>
-          </div>
+function SummaryStat({ label, value, color, delta, deltaUnit }: {
+  label: string; value: string; color: string; delta: number | null; deltaUnit?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
+      <div className="flex items-baseline gap-1.5">
+        <span className={`text-base font-bold font-mono ${color}`}>{value}</span>
+        {delta !== null && delta !== 0 && (
+          <span className={`text-[10px] font-semibold ${delta > 0 ? "text-green-500" : "text-destructive"}`}>
+            {delta > 0 ? "+" : ""}{delta % 1 === 0 ? delta : delta.toFixed(1)}{deltaUnit ?? ""}
+          </span>
         )}
       </div>
     </div>
@@ -1071,107 +1020,96 @@ const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: st
 
 const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
 
-function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
+function SetRow({ set, index, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
   const typeConfig = SET_TYPE_CONFIG[set.type];
   const cycleType = () => {
     const idx = SET_TYPES.indexOf(set.type);
     onUpdate({ type: SET_TYPES[(idx + 1) % SET_TYPES.length] });
   };
 
-  const weightStep = 2.5;
-  const repsStep = 1;
-
-  const comparison = lastSet
-    ? set.reps > lastSet.reps
-      ? "up"
-      : set.reps < lastSet.reps
-      ? "down"
-      : set.weight > lastSet.weight
-      ? "up"
-      : set.weight < lastSet.weight
-      ? "down"
-      : null
-    : null;
-
   return (
     <div
-      className={`grid gap-2 items-center rounded-lg px-2 py-2 transition-all ${
+      className={`rounded-lg px-3 py-3 transition-all ${
         set.completed ? "bg-primary/8 border border-primary/20" : "bg-muted/30"
       }`}
-      style={{ gridTemplateColumns: "28px 1fr 1fr 70px 44px" }}
       data-testid={`row-set-${set.id}`}
     >
-      {/* Set number */}
-      <div className="flex items-center justify-center">
+      {/* Header: set number + actions */}
+      <div className="flex items-center justify-between mb-3">
         <span className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
-          set.completed ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+          set.completed ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
         }`}>
           {index + 1}
         </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onToggleComplete}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
+              set.completed ? "bg-primary" : "border-2 border-primary/40"
+            }`}
+            title={set.completed ? "Mark not done" : "Mark done"}
+            data-testid={set.completed ? `button-uncomplete-set-${set.id}` : `button-complete-set-${set.id}`}
+          >
+            <Check className={`w-4 h-4 ${set.completed ? "text-primary-foreground" : "text-primary/60"}`} />
+          </button>
+          {!set.completed && (
+            <button
+              onClick={onRemove}
+              className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-red-400 hover:bg-destructive/10 transition-colors"
+              title="Remove set"
+              data-testid={`button-remove-set-${set.id}`}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Weight */}
-      <NumberInput
-        value={set.weight}
-        step={weightStep}
-        min={0}
-        suffix="kg"
-        onChange={(v) => onUpdate({ weight: v })}
-        disabled={set.completed}
-        testId={`input-weight-${set.id}`}
-      />
-
-      {/* Reps */}
-      <RepsInput
-        reps={set.reps}
-        partialReps={set.partialReps}
-        onChangeReps={(v) => onUpdate({ reps: v })}
-        onChangePartial={(v) => onUpdate({ partialReps: v })}
-        disabled={set.completed}
-        testId={`input-reps-${set.id}`}
-        comparison={comparison}
-      />
-
-      {/* Type badge */}
-      <button
-        onClick={cycleType}
-        disabled={set.completed}
-        className={`rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors leading-none ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
-        data-testid={`button-set-type-${set.id}`}
-        title={`Tap to change: ${set.type}`}
-      >
-        {typeConfig.label}
-      </button>
-
-      {/* Complete / Remove */}
-      <div className="flex items-center justify-center gap-1">
-        {!set.completed ? (
+      {/* Weight / Reps / Type / Partial in a 2-col grid */}
+      <div className="grid grid-cols-2 gap-3">
+        <FieldBox label="Weight">
+          <NumberInput
+            value={set.weight}
+            step={2.5}
+            min={0}
+            suffix="kg"
+            onChange={(v) => onUpdate({ weight: v })}
+            disabled={set.completed}
+            testId={`input-weight-${set.id}`}
+          />
+        </FieldBox>
+        <FieldBox label="Reps">
+          <NumberInput
+            value={set.reps}
+            step={1}
+            min={0}
+            onChange={(v) => onUpdate({ reps: v })}
+            disabled={set.completed}
+            testId={`input-reps-${set.id}`}
+          />
+        </FieldBox>
+        <FieldBox label="Type" bare>
           <button
-            onClick={onToggleComplete}
-            className="w-8 h-8 rounded-full border-2 border-primary/40 flex items-center justify-center transition-all active:scale-90"
-            data-testid={`button-complete-set-${set.id}`}
+            onClick={cycleType}
+            disabled={set.completed}
+            className={`w-full py-2.5 rounded-md text-xs font-semibold transition-colors ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
+            data-testid={`button-set-type-${set.id}`}
+            title={`Tap to change: ${set.type}`}
           >
-            <Check className="w-4 h-4 text-primary/60" />
+            {typeConfig.label}
           </button>
-        ) : (
-          <button
-            onClick={onToggleComplete}
-            className="w-8 h-8 rounded-full bg-primary flex items-center justify-center transition-all active:scale-90"
-            data-testid={`button-uncomplete-set-${set.id}`}
-          >
-            <Check className="w-4 h-4 text-primary-foreground" />
-          </button>
-        )}
-        {!set.completed && (
-          <button
-            onClick={onRemove}
-            className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
-            data-testid={`button-remove-set-${set.id}`}
-            title="Remove set"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+        </FieldBox>
+        <FieldBox label="Partial">
+          <NumberInput
+            value={set.partialReps}
+            step={1}
+            min={0}
+            suffix="p"
+            onChange={(v) => onUpdate({ partialReps: v })}
+            disabled={set.completed}
+            testId={`input-partial-${set.id}`}
+          />
+        </FieldBox>
       </div>
     </div>
   );
@@ -1225,7 +1163,7 @@ function NumberInput({
       <button
         onClick={() => !disabled && onChange(Math.max(min, parseFloat((value - step).toFixed(2))))}
         disabled={disabled || value <= min}
-        className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-sm text-muted-foreground disabled:opacity-30"
         data-testid={`${testId}-minus`}
       >
         <Minus className="w-3 h-3" />
@@ -1242,88 +1180,11 @@ function NumberInput({
       <button
         onClick={() => !disabled && onChange(parseFloat((value + step).toFixed(2)))}
         disabled={disabled}
-        className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30"
+        className="w-6 h-6 rounded-full flex items-center justify-center text-sm text-muted-foreground disabled:opacity-30"
         data-testid={`${testId}-plus`}
       >
         <Plus className="w-3 h-3" />
       </button>
-    </div>
-  );
-}
-
-// ─── Reps Input ─────────────────────────────────────────────────────────────
-
-function RepsInput({
-  reps, partialReps, onChangeReps, onChangePartial, disabled, testId, comparison
-}: {
-  reps: number;
-  partialReps: number;
-  onChangeReps: (v: number) => void;
-  onChangePartial: (v: number) => void;
-  disabled?: boolean;
-  testId: string;
-  comparison?: "up" | "down" | null;
-}) {
-  const [showPartial, setShowPartial] = useState(partialReps > 0);
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      <div className="flex items-center gap-0.5">
-        <button
-          onClick={() => !disabled && onChangeReps(Math.max(0, reps - 1))}
-          disabled={disabled || reps <= 0}
-          className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30"
-          data-testid={`${testId}-reps-minus`}
-        >
-          <Minus className="w-3 h-3" />
-        </button>
-        <div className="flex-1 text-center">
-          <span className="text-sm font-bold">{reps}</span>
-          {comparison === "up" && <TrendingUp className="inline w-2.5 h-2.5 text-green-500 ml-0.5" />}
-          {comparison === "down" && <TrendingDown className="inline w-2.5 h-2.5 text-destructive ml-0.5" />}
-        </div>
-        <button
-          onClick={() => !disabled && onChangeReps(reps + 1)}
-          disabled={disabled}
-          className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground disabled:opacity-30"
-          data-testid={`${testId}-reps-plus`}
-        >
-          <Plus className="w-3 h-3" />
-        </button>
-      </div>
-
-      {/* Partial reps */}
-      {(showPartial || partialReps > 0) ? (
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => { if (!disabled) { const v = Math.max(0, partialReps - 1); onChangePartial(v); if (v === 0) setShowPartial(false); } }}
-            disabled={disabled || partialReps <= 0}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-orange-400/70 disabled:opacity-30"
-          >
-            <Minus className="w-3 h-3" />
-          </button>
-          <div className="flex-1 text-center">
-            <span className="text-xs text-orange-400 font-semibold">+{partialReps}p</span>
-          </div>
-          <button
-            onClick={() => !disabled && onChangePartial(partialReps + 1)}
-            disabled={disabled}
-            className="w-7 h-7 rounded-md flex items-center justify-center text-orange-400/70 disabled:opacity-30"
-          >
-            <Plus className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        !disabled && (
-          <button
-            onClick={() => setShowPartial(true)}
-            className="w-full text-center text-[11px] font-medium text-orange-400/70 hover:text-orange-400 py-0.5 rounded transition-colors"
-            data-testid={`${testId}-partial-btn`}
-          >
-            + partial
-          </button>
-        )
-      )}
     </div>
   );
 }

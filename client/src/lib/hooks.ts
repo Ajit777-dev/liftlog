@@ -125,3 +125,25 @@ export function formatDate(ts: number): string {
 export function formatWeight(w: number): string {
   return w % 1 === 0 ? `${w}` : `${w}`;
 }
+
+// ─── Set metrics ─────────────────────────────────────────────────────────────
+// Shared so the Session screen and Progress screen always agree.
+
+import type { WorkoutSet } from "./types";
+
+/** Effort score: weight × reps (+ half credit for partials), nudged by set type. */
+export function calcIntensity(sets: WorkoutSet[]): number {
+  return sets
+    .filter((s) => s.completed)
+    .reduce((sum, s) => {
+      const base = s.weight * s.reps + (s.partialReps ?? 0) * s.weight * 0.5;
+      const mult = s.type === "failure" ? 1.1 : s.type === "assisted" ? 0.9 : 1;
+      return sum + base * mult;
+    }, 0);
+}
+
+/** Heaviest weight lifted across the completed sets. */
+export function topWeight(sets: WorkoutSet[]): number {
+  const done = sets.filter((s) => s.completed);
+  return done.length ? Math.max(...done.map((s) => s.weight)) : 0;
+}
