@@ -20,6 +20,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("cute", cute);
+
+    // Swap favicon between dark-blue and pink variants
+    const link = document.querySelector<HTMLLinkElement>("link[rel='icon']");
+    if (link) link.href = cute ? "/favicon-cute.svg" : "/favicon.svg";
+
     try {
       localStorage.setItem(KEY, cute ? "1" : "0");
     } catch {
