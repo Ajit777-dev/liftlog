@@ -20,25 +20,26 @@ import type { Exercise, PersonalBest } from "@/lib/types";
 import { MUSCLE_GROUPS } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
 
+// Minimal monochrome: one quiet neutral badge for every muscle group.
+const NEUTRAL_BADGE = "bg-muted/70 text-muted-foreground border border-border/50";
 const MUSCLE_GROUP_COLORS: Record<string, string> = {
-  Chest: "bg-orange-500/15 text-orange-500",
-  Back: "bg-blue-500/15 text-blue-500",
-  Shoulders: "bg-purple-500/15 text-purple-500",
-  Biceps: "bg-green-500/15 text-green-500",
-  Triceps: "bg-cyan-500/15 text-cyan-500",
-  Legs: "bg-red-500/15 text-red-500",
-  Glutes: "bg-pink-500/15 text-pink-500",
-  Core: "bg-yellow-500/15 text-yellow-500",
-  Cardio: "bg-emerald-500/15 text-emerald-500",
-  "Full Body": "bg-indigo-500/15 text-indigo-500",
-  Other: "bg-muted text-muted-foreground",
+  Chest: NEUTRAL_BADGE,
+  Back: NEUTRAL_BADGE,
+  Shoulders: NEUTRAL_BADGE,
+  Biceps: NEUTRAL_BADGE,
+  Triceps: NEUTRAL_BADGE,
+  Legs: NEUTRAL_BADGE,
+  Glutes: NEUTRAL_BADGE,
+  Core: NEUTRAL_BADGE,
+  Cardio: NEUTRAL_BADGE,
+  "Full Body": NEUTRAL_BADGE,
+  Other: NEUTRAL_BADGE,
 };
 
 export default function Exercises() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [search, setSearch] = useState("");
-  const [filterGroup, setFilterGroup] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [editExercise, setEditExercise] = useState<Exercise | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -82,11 +83,9 @@ export default function Exercises() {
     setForm({ name: ex.name, muscleGroup: ex.muscleGroup ?? "" });
   };
 
-  const filtered = exercises.filter((ex) => {
-    const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase());
-    const matchGroup = filterGroup === "all" || ex.muscleGroup === filterGroup;
-    return matchSearch && matchGroup;
-  });
+  const filtered = exercises.filter((ex) =>
+    ex.name.toLowerCase().includes(search.toLowerCase())
+  );
 
   const grouped = filtered.reduce<Record<string, Exercise[]>>((acc, ex) => {
     const key = ex.muscleGroup ?? "Other";
@@ -105,7 +104,7 @@ export default function Exercises() {
         <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
           <div className="flex items-center justify-between mb-3">
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Exercises</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Exercises</h1>
               <p className="text-xs text-muted-foreground mt-0.5">{exercises.length} exercises</p>
             </div>
             <Button
@@ -120,7 +119,7 @@ export default function Exercises() {
           </div>
 
           {/* Search */}
-          <div className="relative mb-2">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="search"
@@ -130,23 +129,6 @@ export default function Exercises() {
               className="w-full pl-9 pr-4 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-primary"
               data-testid="input-search-exercises"
             />
-          </div>
-
-          {/* Muscle group filter */}
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            <FilterChip
-              active={filterGroup === "all"}
-              onClick={() => setFilterGroup("all")}
-              label="All"
-            />
-            {MUSCLE_GROUPS.map((mg) => (
-              <FilterChip
-                key={mg}
-                active={filterGroup === mg}
-                onClick={() => setFilterGroup(mg)}
-                label={mg}
-              />
-            ))}
           </div>
         </div>
       </div>
@@ -317,21 +299,6 @@ export default function Exercises() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-        active
-          ? "bg-primary text-primary-foreground"
-          : "bg-muted text-muted-foreground"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 

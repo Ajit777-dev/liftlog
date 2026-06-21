@@ -1,0 +1,102 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - main [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - heading "Progress" [level=1] [ref=e8]
+          - paragraph [ref=e9]: Every session, your strength journey
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - generic [ref=e12]:
+              - img [ref=e14]
+              - generic [ref=e20]: "3"
+              - generic [ref=e21]: Workouts
+            - generic [ref=e22]:
+              - img [ref=e24]
+              - generic [ref=e26]: "3"
+              - generic [ref=e27]: Day streak
+            - generic [ref=e28]:
+              - img [ref=e30]
+              - generic [ref=e33]: "3"
+              - generic [ref=e34]: This week
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - img [ref=e37]
+              - generic [ref=e43]: Personal Bests
+            - generic [ref=e44]:
+              - generic [ref=e45]:
+                - generic [ref=e46]: Bench Press
+                - generic [ref=e47]: 82.5kg × 8
+              - generic [ref=e48]:
+                - generic [ref=e49]: Squat
+                - generic [ref=e50]: 110kg × 6
+              - generic [ref=e51]:
+                - generic [ref=e52]: Pull-Up
+                - generic [ref=e53]: 10kg × 8
+              - generic [ref=e54]:
+                - generic [ref=e55]: Overhead Press
+                - generic [ref=e56]: 57.5kg × 8
+              - generic [ref=e57]:
+                - generic [ref=e58]: Barbell Row
+                - generic [ref=e59]: 95kg × 8
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - heading "Track an exercise" [level=2] [ref=e62]
+              - button "Bench Press" [ref=e64] [cursor=pointer]:
+                - img [ref=e65]
+                - generic [ref=e68]: Bench Press
+                - img [ref=e69]
+            - generic [ref=e71]:
+              - generic [ref=e72]:
+                - generic [ref=e73]:
+                  - generic [ref=e74]: Last session
+                  - generic [ref=e75]: Yesterday
+                - generic [ref=e76]:
+                  - generic [ref=e77]:
+                    - generic [ref=e78]: Intensity
+                    - generic [ref=e79]: 3.1k
+                  - generic [ref=e80]:
+                    - generic [ref=e81]: Top Weight
+                    - generic [ref=e82]: 82.5kg
+              - generic [ref=e84]:
+                - paragraph [ref=e85]: Volume trend
+                - paragraph [ref=e86]: 3.0kkg
+              - generic [ref=e87]:
+                - button "Intensity" [ref=e88] [cursor=pointer]
+                - button "Top Weight" [ref=e89] [cursor=pointer]
+                - button "Volume" [ref=e90] [cursor=pointer]
+              - paragraph [ref=e91]: One session logged — train this again to see your trend.
+              - generic [ref=e92]:
+                - paragraph [ref=e93]: Recent sessions
+                - generic [ref=e95]:
+                  - generic [ref=e96]:
+                    - generic [ref=e97]: Yesterday
+                    - generic [ref=e98]: 3.0k kg vol
+                  - generic [ref=e99]:
+                    - generic [ref=e100]: 80kg × 10
+                    - generic [ref=e101]: 80kg × 10
+                    - generic [ref=e102]:
+                      - text: 82.5kg × 8
+                      - generic [ref=e103]: +2p
+                    - generic [ref=e104]:
+                      - text: 82.5kg × 7
+                      - generic [ref=e105]: +3p
+    - navigation [ref=e106]:
+      - generic [ref=e107]:
+        - link "Workout" [ref=e108] [cursor=pointer]:
+          - /url: /
+          - button "Workout" [ref=e109]:
+            - img [ref=e110]
+            - generic [ref=e116]: Workout
+        - link "Exercises" [ref=e117] [cursor=pointer]:
+          - /url: /exercises
+          - button "Exercises" [ref=e118]:
+            - img [ref=e119]
+            - generic [ref=e121]: Exercises
+        - link "Progress" [ref=e122] [cursor=pointer]:
+          - /url: /progress
+          - button "Progress" [ref=e123]:
+            - img [ref=e124]
+            - generic [ref=e125]: Progress

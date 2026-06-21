@@ -4,11 +4,14 @@ import { nanoid } from "nanoid";
 import {
   X, Plus, Check, ChevronDown, ChevronUp, Timer, Zap,
   TrendingUp, TrendingDown, Minus, AlertTriangle, Activity,
-  ArrowLeft, Trophy, Clock
+  ArrowLeft, Trophy, Clock, MoreVertical, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
@@ -18,7 +21,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getTemplate, getActiveSession, saveActiveSession, clearActiveSession,
-  saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate
+  saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate,
+  getLastSessionForTemplate
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
 import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight } from "@/lib/hooks";
@@ -48,36 +52,51 @@ export default function Session() {
 
     const existing = getActiveSession();
     if (existing && existing.templateId === templateId) {
+      // Resuming an in-progress workout: keep every exercise collapsed so
+      // returning to the session doesn't auto-pop the first card open.
       setSession({ ...existing, cardio: existing.cardio || [] });
-      if (existing.exercises.length > 0) {
-        setExpandedExercises(new Set([existing.exercises[0].id]));
-      }
     } else {
+      // Restart: if this template was done before, bring back that exercise
+      // list (including any added mid-session) but with NO sets — the user
+      // taps "Add Set" to log fresh. First-ever start uses the template scaffold.
+      const lastSession = getLastSessionForTemplate(templateId);
+      const exercises: SessionExercise[] = lastSession
+        ? lastSession.exercises.map((ex) => ({
+            id: nanoid(),
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            muscleGroup: ex.muscleGroup,
+            sets: [],
+          }))
+        : tmpl.exercises
+            .sort((a, b) => a.order - b.order)
+            .map((te) => ({
+              id: nanoid(),
+              exerciseId: te.exerciseId,
+              exerciseName: te.exerciseName,
+              muscleGroup: te.muscleGroup,
+              sets: Array.from({ length: te.defaultSets }, () => ({
+                id: nanoid(),
+                weight: 0,
+                reps: 0,
+                partialReps: 0,
+                type: "normal" as SetType,
+                completed: false,
+              })),
+            }));
       const newSession: WorkoutSession = {
         id: nanoid(),
         templateId,
         templateName: tmpl.name,
         startedAt: Date.now(),
-        exercises: tmpl.exercises
-          .sort((a, b) => a.order - b.order)
-          .map((te) => ({
-            id: nanoid(),
-            exerciseId: te.exerciseId,
-            exerciseName: te.exerciseName,
-            muscleGroup: te.muscleGroup,
-            sets: Array.from({ length: te.defaultSets }, () => ({
-              id: nanoid(),
-              weight: 0,
-              reps: 0,
-              partialReps: 0,
-              type: "normal" as SetType,
-              completed: false,
-            })),
-          })),
+        exercises,
         cardio: [],
       };
       setSession(newSession);
-      saveActiveSession(newSession);
+      // Do NOT persist as the active session yet. It only becomes a
+      // resumable "active" workout once the user actually logs something
+      // (any edit goes through updateSession, which saves). This prevents
+      // empty, half-opened sessions from lingering as a stale "resume".
       if (newSession.exercises.length > 0) {
         setExpandedExercises(new Set([newSession.exercises[0].id]));
       }
@@ -143,6 +162,16 @@ export default function Session() {
             ? ex
             : { ...ex, sets: ex.sets.filter((set) => set.id !== setId) }
         ),
+      }));
+    },
+    [updateSession]
+  );
+
+  const removeExercise = useCallback(
+    (exerciseId: string) => {
+      updateSession((s) => ({
+        ...s,
+        exercises: s.exercises.filter((ex) => ex.id !== exerciseId),
       }));
     },
     [updateSession]
@@ -338,10 +367,10 @@ export default function Session() {
                 <X className="w-5 h-5" />
               </Button>
               <div>
-                <h1 className="font-bold text-base leading-tight">{session.templateName}</h1>
+                <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs text-primary font-mono font-semibold">
+                  <span className="text-xs text-primary font-mono font-semibold tabular-nums">
                     {formatDuration(elapsed)}
                   </span>
                 </div>
@@ -351,14 +380,14 @@ export default function Session() {
               size="sm"
               onClick={() => setShowFinishDialog(true)}
               data-testid="button-finish-session"
-              className="font-semibold"
+              className="font-semibold px-5"
             >
               Finish
             </Button>
           </div>
 
           {/* Stats bar */}
-          <div className="flex items-center gap-4 py-2 px-3 rounded-lg bg-muted/50">
+          <div className="flex items-center gap-4 py-2.5 px-3.5 rounded-xl bg-card/70 border border-border/60">
             <div className="flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-primary" />
               <span className="text-xs font-medium">{completedSets} sets</span>
@@ -425,6 +454,7 @@ export default function Session() {
             onRemoveSet={(setId) => removeSet(ex.id, setId)}
             onToggleComplete={(setId, set) => toggleComplete(ex.id, setId, set)}
             onCompleteAll={() => completeExercise(ex.id)}
+            onRemoveExercise={() => removeExercise(ex.id)}
           />
         ))}
 
@@ -565,17 +595,25 @@ interface ExerciseCardProps {
   onRemoveSet: (setId: string) => void;
   onToggleComplete: (setId: string, set: WorkoutSet) => void;
   onCompleteAll: () => void;
+  onRemoveExercise: () => void;
 }
 
 function ExerciseCard({
   exercise, index, expanded, sessionId,
-  onToggleExpand, onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll
+  onToggleExpand, onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll, onRemoveExercise
 }: ExerciseCardProps) {
   const completedSets = exercise.sets.filter((s) => s.completed).length;
   const totalSets = exercise.sets.length;
   const allDone = completedSets === totalSets && totalSets > 0;
 
   const lastData = getLastSessionDataForExercise(exercise.exerciseId, sessionId);
+  const lastSets = lastData?.sets.filter((s) => s.completed) ?? [];
+  const lastLine = lastSets.length
+    ? lastSets
+        .slice(0, 3)
+        .map((s) => `${s.weight > 0 ? `${s.weight}kg` : "BW"}×${s.reps}${s.partialReps ? ` +${s.partialReps}p` : ""}`)
+        .join(" · ") + (lastSets.length > 3 ? ` +${lastSets.length - 3}` : "")
+    : null;
 
   return (
     <div
@@ -585,56 +623,73 @@ function ExerciseCard({
       data-testid={`card-exercise-${exercise.id}`}
     >
       {/* Exercise Header */}
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
-        onClick={onToggleExpand}
-        data-testid={`button-expand-exercise-${exercise.id}`}
-      >
-        {/* Set progress indicator */}
-        <div className="relative w-9 h-9 flex-shrink-0">
-          <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
-            <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
-            {totalSets > 0 && (
-              <circle
-                cx="18" cy="18" r="15" fill="none"
-                stroke="hsl(var(--primary))"
-                strokeWidth="3"
-                strokeDasharray={`${(completedSets / totalSets) * 94.2} 94.2`}
-                strokeLinecap="round"
-              />
-            )}
-          </svg>
-          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
-            {completedSets}/{totalSets}
-          </span>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
-          {exercise.muscleGroup && (
-            <p className="text-[11px] text-muted-foreground">{exercise.muscleGroup}</p>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {allDone && <Check className="w-4 h-4 text-primary" />}
-          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-        </div>
-      </button>
-
-      {/* Previous session preview (collapsed) */}
-      {!expanded && lastData && (
-        <div className="px-4 pb-3">
-          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-            <Clock className="w-3 h-3" />
-            <span>Last: {lastData.sets.filter(s => s.completed).map(s =>
-              `${s.weight}kg × ${s.reps}${s.partialReps ? `+${s.partialReps}` : ""}`
-            ).slice(0, 2).join("  ·  ")}
-            {lastData.sets.filter(s => s.completed).length > 2 ? ` +${lastData.sets.filter(s => s.completed).length - 2}` : ""}
+      <div className="w-full flex items-center gap-3 px-4 py-3.5">
+        {/* Clickable area toggles expand */}
+        <button
+          className="flex items-center gap-3 flex-1 min-w-0 text-left"
+          onClick={onToggleExpand}
+          data-testid={`button-expand-exercise-${exercise.id}`}
+        >
+          {/* Set progress indicator */}
+          <div className="relative w-9 h-9 flex-shrink-0">
+            <svg className="w-9 h-9 -rotate-90" viewBox="0 0 36 36">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
+              {totalSets > 0 && (
+                <circle
+                  cx="18" cy="18" r="15" fill="none"
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="3"
+                  strokeDasharray={`${(completedSets / totalSets) * 94.2} 94.2`}
+                  strokeLinecap="round"
+                />
+              )}
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold">
+              {completedSets}/{totalSets}
             </span>
           </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
+            {/* Last session's lifts, right under the title */}
+            {lastLine ? (
+              <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5 font-mono">
+                <Clock className="w-3 h-3 flex-shrink-0" />
+                {lastLine}
+              </p>
+            ) : exercise.muscleGroup ? (
+              <p className="text-[11px] text-muted-foreground">{exercise.muscleGroup}</p>
+            ) : null}
+          </div>
+        </button>
+
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {allDone && <Check className="w-4 h-4 text-primary" />}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted/60 transition-colors"
+                data-testid={`button-exercise-menu-${exercise.id}`}
+                title="Exercise options"
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={onRemoveExercise}
+                className="text-destructive focus:text-destructive"
+                data-testid={`menu-remove-exercise-${exercise.id}`}
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> Remove exercise
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button onClick={onToggleExpand} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground" data-testid={`button-chevron-exercise-${exercise.id}`}>
+            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Sets */}
       {expanded && (
@@ -973,8 +1028,8 @@ function ExerciseProgressSummary({
   return (
     <div className="rounded-lg px-3 py-2.5 mb-1 bg-muted/40 border border-border/50">
       <div className="grid grid-cols-2 gap-2">
-        <SummaryStat label="Intensity" value={`${intensity}`} color="text-orange-400" delta={intDelta} />
-        <SummaryStat label="Top Weight" value={`${bestWeight}kg`} color="text-purple-400" delta={wtDelta} deltaUnit="kg" />
+        <SummaryStat label="Intensity" value={`${intensity}`} color="text-primary" delta={intDelta} />
+        <SummaryStat label="Top Weight" value={`${bestWeight}kg`} color="text-foreground" delta={wtDelta} deltaUnit="kg" />
       </div>
       <p className="text-[11px] text-muted-foreground mt-2">
         {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import {
-  TrendingUp, TrendingDown, Trophy, Flame, Dumbbell,
+  TrendingUp, TrendingDown, Trophy,
   Search, X, ChevronDown, BarChart2,
 } from "lucide-react";
 import {
@@ -13,10 +13,12 @@ import { formatDate, calcIntensity, topWeight } from "@/lib/hooks";
 
 type Metric = "intensity" | "weight" | "volume";
 
+// Single accent across every metric — minimal, monochrome + one blue.
+const ACCENT = "hsl(214 94% 60%)";
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
-  { key: "intensity", label: "Intensity",  unit: "",   color: "hsl(38 95% 55%)" },
-  { key: "weight",    label: "Top Weight", unit: "kg", color: "hsl(270 70% 65%)" },
-  { key: "volume",    label: "Volume",     unit: "kg", color: "hsl(217 91% 60%)" },
+  { key: "intensity", label: "Intensity",  unit: "",   color: ACCENT },
+  { key: "weight",    label: "Top Weight", unit: "kg", color: ACCENT },
+  { key: "volume",    label: "Volume",     unit: "kg", color: ACCENT },
 ];
 
 interface SessionPoint {
@@ -223,18 +225,6 @@ function ExerciseSelector({
   );
 }
 
-// ─── Stat Card ───────────────────────────────────────────────────────────────
-
-function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
-  return (
-    <div className="rounded-xl bg-card border border-card-border px-3 py-3.5 flex flex-col items-center gap-1 text-center">
-      <div className="text-muted-foreground">{icon}</div>
-      <span className="text-xl font-bold leading-none">{value}</span>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
-    </div>
-  );
-}
-
 function LastStat({ label, value, unit, color, delta }: {
   label: string; value: string; unit?: string; color: string; delta: number | null;
 }) {
@@ -261,7 +251,8 @@ export default function Progress() {
   const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [metric, setMetric] = useState<Metric>("volume");
+  const [metric, setMetric] = useState<Metric>("intensity");
+  const [pbOpen, setPbOpen] = useState(false);
 
   useEffect(() => {
     const s = getSessions();
@@ -283,24 +274,6 @@ export default function Progress() {
       setSelectedId(recent && loggedExercises.some((e) => e.id === recent) ? recent : loggedExercises[0].id);
     }
   }, [selectedId, loggedExercises, sessions]);
-
-  const sessionVolume = (s: WorkoutSession) =>
-    s.exercises.reduce((t, ex) =>
-      t + ex.sets.filter((set) => set.completed)
-        .reduce((sum, set) => sum + set.weight * (set.reps + (set.partialReps ?? 0) * 0.5), 0), 0);
-
-  const thisWeekCount = sessions.filter((s) => Date.now() - s.startedAt < 7 * 86400000).length;
-
-  const streak = useMemo(() => {
-    if (!sessions.length) return 0;
-    const days = new Set(sessions.map((s) => { const d = new Date(s.startedAt); d.setHours(0, 0, 0, 0); return d.getTime(); }));
-    let count = 0;
-    const cur = new Date(); cur.setHours(0, 0, 0, 0);
-    // Allow today to be a rest day without breaking the streak.
-    if (!days.has(cur.getTime())) cur.setDate(cur.getDate() - 1);
-    while (days.has(cur.getTime())) { count++; cur.setDate(cur.getDate() - 1); }
-    return count;
-  }, [sessions]);
 
   const points = useMemo(
     () => (selectedId ? buildPoints(sessions, selectedId) : []),
@@ -335,90 +308,51 @@ export default function Progress() {
     <div className="flex flex-col min-h-full pb-24">
       <Header />
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-4">
-        {/* Headline stats */}
-        <div className="grid grid-cols-3 gap-2.5">
-          <StatCard icon={<Dumbbell className="w-4 h-4" />} value={`${sessions.length}`} label="Workouts" />
-          <StatCard icon={<Flame className="w-4 h-4" />} value={`${streak}`} label="Day streak" />
-          <StatCard icon={<TrendingUp className="w-4 h-4" />} value={`${thisWeekCount}`} label="This week" />
-        </div>
+      <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-5">
+        {/* Exercise picker — drives the whole page */}
+        <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={setSelectedId} />
 
-        {/* Personal bests */}
-        {pbs.length > 0 && (
-          <div className="rounded-2xl bg-card border border-card-border overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
-              <Trophy className="w-4 h-4 text-accent" />
-              <span className="font-semibold text-sm">Personal Bests</span>
-            </div>
-            <div className="divide-y divide-border/30">
-              {pbs.slice(0, 6).map((pb) => (
-                <div key={pb.exerciseId} className="flex items-center justify-between px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
-                  <span className="text-sm font-medium truncate pr-2">{pb.exerciseName}</span>
-                  <span className="text-sm font-bold font-mono whitespace-nowrap">
-                    {pb.weight > 0 ? `${pb.weight}kg` : "BW"} × {pb.reps}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Exercise progress */}
-        <div className="rounded-2xl bg-card border border-card-border overflow-hidden">
-          <div className="px-4 pt-4 pb-3">
-            <h2 className="text-sm font-semibold mb-3">Track an exercise</h2>
-            <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={setSelectedId} />
-          </div>
-
-          {selectedExercise && points.length > 0 ? (
-            <div className="px-4 pb-4 flex flex-col gap-4">
-              {/* Last session — intensity & top weight at a glance */}
-              {last && (
-                <div className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
-                  <div className="px-3 py-2 border-b border-border/40 flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Last session</span>
-                    <span className="text-[11px] text-muted-foreground">{formatDate(last.date)}</span>
-                  </div>
-                  <div className="grid grid-cols-2 divide-x divide-border/40">
-                    <LastStat
-                      label="Intensity" value={fmt(last.intensity)}
-                      color="hsl(38 95% 55%)"
-                      delta={prev ? last.intensity - prev.intensity : null}
-                    />
-                    <LastStat
-                      label="Top Weight" value={`${fmt(last.weight)}`} unit="kg"
-                      color="hsl(270 70% 65%)"
-                      delta={prev ? last.weight - prev.weight : null}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Trend label + change vs previous */}
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{metricCfg.label} trend</p>
-                  <p className="text-2xl font-bold leading-tight" style={{ color: metricCfg.color }}>
-                    {fmt(metricValue(last!, metric))}
-                    <span className="text-sm font-normal text-muted-foreground ml-1">{metricCfg.unit}</span>
+        {/* ── HERO: the graph is the main event ── */}
+        {selectedExercise && points.length > 0 ? (
+          <div
+            className="rounded-3xl border border-card-border overflow-hidden shadow-xl shadow-black/20"
+            style={{ background: `linear-gradient(180deg, ${metricCfg.color}1f, hsl(var(--card)) 42%)` }}
+          >
+            {/* Title + headline value */}
+            <div className="px-5 pt-5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-lg font-bold truncate">{selectedExercise.name}</h2>
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mt-0.5">
+                    {metricCfg.label} · last {points.length} session{points.length !== 1 ? "s" : ""}
                   </p>
                 </div>
                 {delta !== null && delta !== 0 && (
-                  <div className={`flex items-center gap-1 text-sm font-bold ${delta > 0 ? "text-green-500" : "text-destructive"}`}>
-                    {delta > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                    {delta > 0 ? "+" : ""}{fmt(delta)} {metricCfg.unit}
+                  <div className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                    delta > 0 ? "bg-green-500/15 text-green-500" : "bg-destructive/15 text-destructive"
+                  }`}>
+                    {delta > 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                    {delta > 0 ? "+" : ""}{fmt(delta)}
                   </div>
                 )}
               </div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-4xl font-bold tracking-tight" style={{ color: metricCfg.color }}>
+                  {fmt(metricValue(last!, metric))}
+                </span>
+                <span className="text-sm text-muted-foreground">{metricCfg.unit || metricCfg.label.toLowerCase()}</span>
+              </div>
+            </div>
 
-              {/* Metric toggle */}
-              <div className="flex gap-1 p-1 rounded-xl bg-muted/50">
+            {/* Metric toggle */}
+            <div className="px-5 mt-4">
+              <div className="flex gap-1 p-1 rounded-xl bg-background/50 backdrop-blur">
                 {METRICS.map((m) => (
                   <button
                     key={m.key}
                     onClick={() => setMetric(m.key)}
                     className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
-                      metric === m.key ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"
+                      metric === m.key ? "bg-card shadow text-foreground" : "text-muted-foreground"
                     }`}
                     data-testid={`button-metric-${m.key}`}
                   >
@@ -426,51 +360,104 @@ export default function Progress() {
                   </button>
                 ))}
               </div>
+            </div>
 
-              {/* Chart */}
+            {/* The chart */}
+            <div className="px-3 pt-4 pb-1">
               {points.length >= 2 ? (
                 <LineChart points={points} metric={metric} />
               ) : (
-                <p className="text-center text-sm text-muted-foreground py-8">
+                <p className="text-center text-sm text-muted-foreground py-10">
                   One session logged — train this again to see your trend.
                 </p>
               )}
+            </div>
 
-              {/* Session history (the actual progress made) */}
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Recent sessions
-                </p>
-                <div className="flex flex-col gap-2">
-                  {points.slice().reverse().map((p) => (
-                    <div key={p.date} className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold">{formatDate(p.date)}</span>
-                        <span className="text-[11px] text-muted-foreground font-mono">{fmt(p.volume)} kg vol</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {p.sets.map((set, i) => (
-                          <span key={i} className="text-[11px] font-mono bg-card border border-border/50 px-2 py-0.5 rounded-full">
-                            {set.weight > 0 ? `${set.weight}kg` : "BW"} × {set.reps}
-                            {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+            {/* Last session: intensity & top weight */}
+            {last && (
+              <div className="mx-5 mb-5 mt-2 rounded-2xl border border-border/50 bg-background/40 overflow-hidden">
+                <div className="px-4 py-2 flex items-center justify-between border-b border-border/40">
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Last session</span>
+                  <span className="text-[11px] text-muted-foreground">{formatDate(last.date)}</span>
+                </div>
+                <div className="grid grid-cols-2 divide-x divide-border/40">
+                  <LastStat label="Intensity" value={fmt(last.intensity)} color={ACCENT}
+                    delta={prev ? last.intensity - prev.intensity : null} />
+                  <LastStat label="Top Weight" value={fmt(last.weight)} unit="kg" color="hsl(var(--foreground))"
+                    delta={prev ? last.weight - prev.weight : null} />
                 </div>
               </div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-card-border bg-card text-center py-16 px-4">
+            <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+              <BarChart2 className="w-7 h-7 text-muted-foreground" />
             </div>
-          ) : (
-            <div className="text-center py-10 px-4">
-              <p className="text-sm text-muted-foreground">
-                {loggedExercises.length === 0
-                  ? "Log a workout to start tracking exercises."
-                  : "Pick an exercise above to see your progress."}
-              </p>
+            <p className="text-sm text-muted-foreground">
+              {loggedExercises.length === 0
+                ? "Log a workout to start tracking exercises."
+                : "Pick an exercise above to see your progress."}
+            </p>
+          </div>
+        )}
+
+        {/* Recent sessions — the actual progress made */}
+        {selectedExercise && points.length > 0 && (
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
+              Recent sessions
+            </p>
+            <div className="flex flex-col gap-2">
+              {points.slice().reverse().map((p) => (
+                <div key={p.date} className="rounded-xl border border-border/60 bg-card px-3 py-2.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-semibold">{formatDate(p.date)}</span>
+                    <span className="text-[11px] text-muted-foreground font-mono">{fmt(p.volume)} kg vol</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {p.sets.map((set, i) => (
+                      <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
+                        {set.weight > 0 ? `${set.weight}kg` : "BW"} × {set.reps}
+                        {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Personal Bests — collapsed by default */}
+        {pbs.length > 0 && (
+          <div className="rounded-2xl bg-card border border-card-border overflow-hidden">
+            <button
+              onClick={() => setPbOpen((o) => !o)}
+              className="w-full flex items-center justify-between px-4 py-3.5"
+              data-testid="button-toggle-pbs"
+            >
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-accent" />
+                <span className="font-semibold text-sm">Personal Bests</span>
+                <span className="text-[10px] font-semibold bg-muted text-muted-foreground rounded-full px-1.5 py-0.5">{pbs.length}</span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${pbOpen ? "rotate-180" : ""}`} />
+            </button>
+            {pbOpen && (
+              <div className="divide-y divide-border/30 border-t border-border/50">
+                {pbs.map((pb) => (
+                  <div key={pb.exerciseId} className="flex items-center justify-between px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
+                    <span className="text-sm font-medium truncate pr-2">{pb.exerciseName}</span>
+                    <span className="text-sm font-bold font-mono whitespace-nowrap">
+                      {pb.weight > 0 ? `${pb.weight}kg` : "BW"} × {pb.reps}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -480,7 +467,7 @@ function Header() {
   return (
     <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
       <div className="max-w-lg mx-auto px-4 py-4">
-        <h1 className="text-xl font-bold tracking-tight">Progress</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
         <p className="text-xs text-muted-foreground mt-0.5">Every session, your strength journey</p>
       </div>
     </div>
