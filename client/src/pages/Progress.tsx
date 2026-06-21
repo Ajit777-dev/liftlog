@@ -625,7 +625,7 @@ function CalendarModal({ open, onClose, sessions }: {
                             const typeTag = ` (${TYPE_SHORT[set.type] ?? "N"})`;
                             const partial = (set.partialReps ?? 0) > 0 ? ` +${set.partialReps}p` : "";
                             return base + typeTag + partial;
-                          }).join(", ")}
+                          }).join(" · ")}
                           {done.length > 3 ? ` +${done.length - 3}` : ""}
                         </span>
                       </div>

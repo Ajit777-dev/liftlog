@@ -627,11 +627,16 @@ function ExerciseCard({
   const allDone = completedSets === totalSets && totalSets > 0;
 
   const lastData = getLastSessionDataForExercise(exercise.exerciseId, sessionId);
-  const lastSets = lastData?.sets.filter((s) => s.completed) ?? [];
+  const lastSets = lastData?.sets.filter((s) => s.completed && s.reps > 0) ?? [];
   const lastLine = lastSets.length
     ? lastSets
         .slice(0, 3)
-        .map((s) => `${s.weight > 0 ? `${s.weight}kg` : "BW"}×${s.reps}${s.partialReps ? ` +${s.partialReps}p` : ""}`)
+        .map((s) => {
+          const base = `${s.weight > 0 ? `${s.weight}kg` : "BW"}×${s.reps}`;
+          const typeShort = SET_TYPE_CONFIG[s.type]?.short ?? "N";
+          const partial = s.partialReps ? ` +${s.partialReps}p` : "";
+          return `${base} (${typeShort})${partial}`;
+        })
         .join(" · ") + (lastSets.length > 3 ? ` +${lastSets.length - 3}` : "")
     : null;
 
@@ -671,8 +676,8 @@ function ExerciseCard({
 
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
-            {/* Last session's lifts, right under the title */}
-            {lastLine ? (
+            {/* Last session's lifts — only visible when card is open */}
+            {lastLine && expanded ? (
               <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5 font-mono">
                 <Clock className="w-3 h-3 flex-shrink-0" />
                 {lastLine}
