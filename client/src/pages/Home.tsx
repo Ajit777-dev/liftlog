@@ -110,8 +110,7 @@ export default function Home() {
                   : "bg-muted/60 text-muted-foreground border-border"
               }`}
             >
-              <span className="text-base leading-none">🧸</span>
-              <span>Cute</span>
+              Cute
             </button>
             <Button
               size="sm"

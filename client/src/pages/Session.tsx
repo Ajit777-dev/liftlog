@@ -26,11 +26,22 @@ import {
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
 import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight } from "@/lib/hooks";
+import { useTheme } from "@/lib/theme";
+
+const CUTE_EMOJI_SRCS: Record<string, string> = {
+  bench_press:    "/cute-emojis/emoji_bunny_bench_press.png",
+  deadlift:       "/cute-emojis/emoji_bunny_deadlift.png",
+  lat_pulldown:   "/cute-emojis/emoji_bunny_lat_pulldown.png",
+  overhead_press: "/cute-emojis/emoji_bunny_overhead_press.png",
+  dumbbell_curl:  "/cute-emojis/emoji_bunny_dumbbell_curl.png",
+  cable_pull:     "/cute-emojis/emoji_bunny_cable_pull.png",
+};
 
 export default function Session() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const templateId = params.id;
+  const { cute } = useTheme();
 
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -366,13 +377,22 @@ export default function Session() {
               >
                 <X className="w-5 h-5" />
               </Button>
-              <div>
-                <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs text-primary font-mono font-semibold tabular-nums">
-                    {formatDuration(elapsed)}
-                  </span>
+              <div className="flex items-center gap-2">
+                {cute && template?.cuteEmoji && CUTE_EMOJI_SRCS[template.cuteEmoji] && (
+                  <img
+                    src={CUTE_EMOJI_SRCS[template.cuteEmoji]}
+                    alt=""
+                    className="w-8 h-8 object-contain flex-shrink-0"
+                  />
+                )}
+                <div>
+                  <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="text-xs text-primary font-mono font-semibold tabular-nums">
+                      {formatDuration(elapsed)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp, TrendingDown, Trophy,
-  Search, X, ChevronDown, BarChart2, Trash2,
+  Search, X, ChevronDown, BarChart2,
   CalendarDays, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
-  getSessions, getPersonalBests, getExercises, deletePersonalBest,
+  getSessions, getPersonalBests, getExercises,
 } from "@/lib/storage";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
@@ -264,11 +264,6 @@ export default function Progress() {
     setExercises(getExercises());
   }, []);
 
-  const handleDeletePb = (exerciseId: string) => {
-    deletePersonalBest(exerciseId);
-    setPbs((prev) => prev.filter((pb) => pb.exerciseId !== exerciseId));
-  };
-
   // Only exercises the user has actually logged — keeps the picker meaningful.
   const loggedExercises = useMemo(
     () => exercises.filter((ex) => sessions.some((s) => s.exercises.some((e) => e.exerciseId === ex.id))),
@@ -456,19 +451,11 @@ export default function Progress() {
             {pbOpen && (
               <div className="divide-y divide-border/30 border-t border-border/50">
                 {pbs.map((pb) => (
-                  <div key={pb.exerciseId} className="flex items-center gap-2 px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
-                    <span className="text-sm font-medium truncate flex-1">{pb.exerciseName}</span>
+                  <div key={pb.exerciseId} className="flex items-center justify-between px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
+                    <span className="text-sm font-medium truncate pr-2">{pb.exerciseName}</span>
                     <span className="text-sm font-bold font-mono whitespace-nowrap">
                       {pb.weight > 0 ? `${pb.weight}kg` : "BW"} × {pb.reps}
                     </span>
-                    <button
-                      onClick={() => handleDeletePb(pb.exerciseId)}
-                      className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
-                      title="Delete record"
-                      data-testid={`button-delete-pb-${pb.exerciseId}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
                   </div>
                 ))}
               </div>
@@ -546,7 +533,8 @@ function CalendarModal({ open, onClose, sessions }: {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden gap-0">
+      {/* [&>button]:hidden removes the default DialogContent X close button */}
+      <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden gap-0 [&>button]:hidden">
         {/* Month navigation */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <button
@@ -627,14 +615,18 @@ function CalendarModal({ open, onClose, sessions }: {
                   {s.exercises.map((ex) => {
                     const done = ex.sets.filter((set) => set.completed);
                     if (done.length === 0) return null;
+                    const TYPE_SHORT: Record<string, string> = { normal: "N", assisted: "A", failure: "F" };
                     return (
                       <div key={ex.id} className="text-xs">
                         <span className="font-medium">{ex.exerciseName}: </span>
                         <span className="text-muted-foreground font-mono">
-                          {done.slice(0, 4).map((set) =>
-                            `${set.weight > 0 ? set.weight + "kg" : "BW"}×${set.reps}`
-                          ).join(", ")}
-                          {done.length > 4 ? ` +${done.length - 4}` : ""}
+                          {done.slice(0, 3).map((set) => {
+                            const base = `${set.weight > 0 ? set.weight + "kg" : "BW"}×${set.reps}`;
+                            const typeTag = ` (${TYPE_SHORT[set.type] ?? "N"})`;
+                            const partial = (set.partialReps ?? 0) > 0 ? ` +${set.partialReps}p` : "";
+                            return base + typeTag + partial;
+                          }).join(", ")}
+                          {done.length > 3 ? ` +${done.length - 3}` : ""}
                         </span>
                       </div>
                     );
