@@ -85,7 +85,8 @@ export function getTemplate(id: string): WorkoutTemplate | undefined {
 export function createTemplate(
   name: string,
   description?: string,
-  color?: string
+  color?: string,
+  cuteEmoji?: string
 ): WorkoutTemplate {
   const templates = load<WorkoutTemplate>(KEYS.templates);
   const template: WorkoutTemplate = {
@@ -95,6 +96,7 @@ export function createTemplate(
     exercises: [],
     createdAt: Date.now(),
     color,
+    cuteEmoji,
   };
   templates.push(template);
   save(KEYS.templates, templates);

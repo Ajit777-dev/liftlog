@@ -66,6 +66,7 @@ export interface WorkoutTemplate {
   createdAt: number;
   lastUsed?: number;
   color?: string;
+  cuteEmoji?: string; // filename stem, e.g. "bench_press"
 }
 
 export interface Exercise {

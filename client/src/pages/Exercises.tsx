@@ -40,6 +40,7 @@ export default function Exercises() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [search, setSearch] = useState("");
+  const [filterGroup, setFilterGroup] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editExercise, setEditExercise] = useState<Exercise | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -83,9 +84,11 @@ export default function Exercises() {
     setForm({ name: ex.name, muscleGroup: ex.muscleGroup ?? "" });
   };
 
-  const filtered = exercises.filter((ex) =>
-    ex.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = exercises.filter((ex) => {
+    const matchSearch = ex.name.toLowerCase().includes(search.toLowerCase());
+    const matchGroup = !filterGroup || (ex.muscleGroup ?? "Other") === filterGroup;
+    return matchSearch && matchGroup;
+  });
 
   const grouped = filtered.reduce<Record<string, Exercise[]>>((acc, ex) => {
     const key = ex.muscleGroup ?? "Other";
@@ -95,6 +98,10 @@ export default function Exercises() {
   }, {});
 
   const muscleGroups = Object.keys(grouped).sort();
+  // Only show filter groups that actually have exercises
+  const availableGroups = MUSCLE_GROUPS.filter((mg) =>
+    exercises.some((ex) => (ex.muscleGroup ?? "Other") === mg)
+  );
   const pbMap = new Map(pbs.map((pb) => [pb.exerciseId, pb]));
 
   return (
@@ -119,7 +126,7 @@ export default function Exercises() {
           </div>
 
           {/* Search */}
-          <div className="relative">
+          <div className="relative mb-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="search"
@@ -130,6 +137,36 @@ export default function Exercises() {
               data-testid="input-search-exercises"
             />
           </div>
+
+          {/* Muscle group filter pills */}
+          {availableGroups.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              <button
+                onClick={() => setFilterGroup(null)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                  !filterGroup
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-muted/40 text-muted-foreground border-border"
+                }`}
+              >
+                All
+              </button>
+              {availableGroups.map((mg) => (
+                <button
+                  key={mg}
+                  onClick={() => setFilterGroup(filterGroup === mg ? null : mg)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                    filterGroup === mg
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/40 text-muted-foreground border-border"
+                  }`}
+                  data-testid={`filter-${mg}`}
+                >
+                  {mg}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

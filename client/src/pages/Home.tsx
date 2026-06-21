@@ -22,6 +22,20 @@ const TEMPLATE_COLORS = [
   "#ef4444", "#06b6d4", "#f59e0b", "#ec4899",
 ];
 
+// Bunny workout emoji stickers — shown only in cute mode.
+const CUTE_EMOJIS = [
+  { id: "bench_press",    label: "Bench Press",    src: "/cute-emojis/emoji_bunny_bench_press.png" },
+  { id: "deadlift",       label: "Deadlift",        src: "/cute-emojis/emoji_bunny_deadlift.png" },
+  { id: "lat_pulldown",   label: "Lat Pulldown",    src: "/cute-emojis/emoji_bunny_lat_pulldown.png" },
+  { id: "overhead_press", label: "Overhead Press",  src: "/cute-emojis/emoji_bunny_overhead_press.png" },
+  { id: "dumbbell_curl",  label: "Dumbbell Curl",   src: "/cute-emojis/emoji_bunny_dumbbell_curl.png" },
+  { id: "cable_pull",     label: "Cable Pull",      src: "/cute-emojis/emoji_bunny_cable_pull.png" },
+];
+
+function cuteEmojiSrc(id: string) {
+  return CUTE_EMOJIS.find((e) => e.id === id)?.src ?? null;
+}
+
 export default function Home() {
   const [, navigate] = useLocation();
   const { cute, toggle } = useTheme();
@@ -29,7 +43,7 @@ export default function Home() {
   const [activeSession, setActiveSession] = useState(getActiveSession());
   const [showCreate, setShowCreate] = useState(false);
   const [editTemplate, setEditTemplate] = useState<WorkoutTemplate | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", color: TEMPLATE_COLORS[0] });
+  const [form, setForm] = useState({ name: "", description: "", color: TEMPLATE_COLORS[0], cuteEmoji: "" });
 
   useEffect(() => {
     setTemplates(getTemplates());
@@ -38,42 +52,37 @@ export default function Home() {
 
   const refresh = () => setTemplates(getTemplates());
 
+  const resetForm = () => setForm({ name: "", description: "", color: TEMPLATE_COLORS[0], cuteEmoji: "" });
+
   const handleCreate = () => {
     if (!form.name.trim()) return;
-    createTemplate(form.name, form.description || undefined, form.color);
-    setForm({ name: "", description: "", color: TEMPLATE_COLORS[0] });
+    createTemplate(form.name, form.description || undefined, form.color, form.cuteEmoji || undefined);
+    resetForm();
     setShowCreate(false);
     refresh();
   };
 
   const handleEdit = () => {
     if (!editTemplate || !form.name.trim()) return;
-    updateTemplate(editTemplate.id, { name: form.name, description: form.description || undefined, color: form.color });
+    updateTemplate(editTemplate.id, {
+      name: form.name,
+      description: form.description || undefined,
+      color: form.color,
+      cuteEmoji: form.cuteEmoji || undefined,
+    });
     setEditTemplate(null);
     refresh();
   };
 
   const openEdit = (t: WorkoutTemplate) => {
     setEditTemplate(t);
-    setForm({ name: t.name, description: t.description ?? "", color: t.color ?? TEMPLATE_COLORS[0] });
+    setForm({ name: t.name, description: t.description ?? "", color: t.color ?? TEMPLATE_COLORS[0], cuteEmoji: t.cuteEmoji ?? "" });
   };
 
-  const handleDuplicate = (id: string) => {
-    duplicateTemplate(id);
-    refresh();
-  };
-
-  const handleDelete = (id: string) => {
-    deleteTemplate(id);
-    refresh();
-  };
-
-  const startSession = (template: WorkoutTemplate) => {
-    navigate(`/session/${template.id}`);
-  };
-
-  const getTotalSets = (t: WorkoutTemplate) =>
-    t.exercises.reduce((sum, e) => sum + e.defaultSets, 0);
+  const handleDuplicate = (id: string) => { duplicateTemplate(id); refresh(); };
+  const handleDelete    = (id: string) => { deleteTemplate(id);    refresh(); };
+  const startSession    = (template: WorkoutTemplate) => navigate(`/session/${template.id}`);
+  const getTotalSets    = (t: WorkoutTemplate) => t.exercises.reduce((sum, e) => sum + e.defaultSets, 0);
 
   return (
     <div className="flex flex-col min-h-full pb-20">
@@ -172,6 +181,7 @@ export default function Home() {
                     template={template}
                     lastSession={lastSession}
                     totalSets={getTotalSets(template)}
+                    cute={cute}
                     onStart={() => startSession(template)}
                     onEdit={() => openEdit(template)}
                     onDuplicate={() => handleDuplicate(template.id)}
@@ -185,7 +195,10 @@ export default function Home() {
       </div>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={showCreate || !!editTemplate} onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditTemplate(null); setForm({ name: "", description: "", color: TEMPLATE_COLORS[0] }); } }}>
+      <Dialog
+        open={showCreate || !!editTemplate}
+        onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditTemplate(null); resetForm(); } }}
+      >
         <DialogContent className="max-w-sm mx-4">
           <DialogHeader>
             <DialogTitle>{editTemplate ? "Edit Workout" : "New Workout"}</DialogTitle>
@@ -228,9 +241,35 @@ export default function Home() {
                 ))}
               </div>
             </div>
+
+            {/* Cute emoji picker — visible only in cute mode */}
+            {cute && (
+              <div className="flex flex-col gap-2">
+                <Label>Workout Emoji</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {CUTE_EMOJIS.map((em) => (
+                    <button
+                      key={em.id}
+                      onClick={() => setForm((f) => ({ ...f, cuteEmoji: f.cuteEmoji === em.id ? "" : em.id }))}
+                      data-testid={`cute-emoji-${em.id}`}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all ${
+                        form.cuteEmoji === em.id
+                          ? "border-primary bg-primary/10 scale-105"
+                          : "border-border bg-muted/30"
+                      }`}
+                    >
+                      <img src={em.src} alt={em.label} className="w-12 h-12 object-contain" />
+                      <span className="text-[10px] text-muted-foreground leading-tight text-center">{em.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowCreate(false); setEditTemplate(null); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowCreate(false); setEditTemplate(null); resetForm(); }}>
+              Cancel
+            </Button>
             <Button
               onClick={editTemplate ? handleEdit : handleCreate}
               disabled={!form.name.trim()}
@@ -249,15 +288,17 @@ interface TemplateCardProps {
   template: WorkoutTemplate;
   lastSession?: ReturnType<typeof getLastSessionForTemplate>;
   totalSets: number;
+  cute: boolean;
   onStart: () => void;
   onEdit: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
 }
 
-function TemplateCard({ template, lastSession, totalSets, onStart, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
+function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicate, onDelete }: TemplateCardProps) {
   const color = template.color ?? "#3b82f6";
   const [, navigate] = useLocation();
+  const emojiSrc = cute && template.cuteEmoji ? cuteEmojiSrc(template.cuteEmoji) : null;
 
   return (
     <div
@@ -269,11 +310,16 @@ function TemplateCard({ template, lastSession, totalSets, onStart, onEdit, onDup
 
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-base leading-tight truncate">{template.name}</h3>
-            {template.description && (
-              <p className="text-xs text-muted-foreground mt-0.5 truncate">{template.description}</p>
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            {emojiSrc && (
+              <img src={emojiSrc} alt="" className="w-9 h-9 object-contain flex-shrink-0" />
             )}
+            <div className="min-w-0">
+              <h3 className="font-semibold text-base leading-tight truncate">{template.name}</h3>
+              {template.description && (
+                <p className="text-xs text-muted-foreground mt-0.5 truncate">{template.description}</p>
+              )}
+            </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -306,11 +352,7 @@ function TemplateCard({ template, lastSession, totalSets, onStart, onEdit, onDup
         {/* Exercise pills */}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {template.exercises.slice(0, 4).map((ex) => (
-            <Badge
-              key={ex.id}
-              variant="secondary"
-              className="text-[10px] font-medium px-2"
-            >
+            <Badge key={ex.id} variant="secondary" className="text-[10px] font-medium px-2">
               {ex.exerciseName}
             </Badge>
           ))}
@@ -346,11 +388,7 @@ function TemplateCard({ template, lastSession, totalSets, onStart, onEdit, onDup
             onClick={onStart}
             data-testid={`button-start-${template.id}`}
             className="gap-1.5 font-semibold"
-            style={{
-              backgroundColor: color,
-              borderColor: color,
-              color: "white",
-            }}
+            style={{ backgroundColor: color, borderColor: color, color: "white" }}
           >
             <Play className="w-3.5 h-3.5 fill-white" />
             Start

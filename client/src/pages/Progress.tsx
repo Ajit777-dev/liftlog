@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp, TrendingDown, Trophy,
   Search, X, ChevronDown, BarChart2, Trash2,
+  CalendarDays, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import {
   getSessions, getPersonalBests, getExercises, deletePersonalBest,
 } from "@/lib/storage";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
 import { formatDate, calcIntensity, topWeight } from "@/lib/hooks";
 
@@ -253,6 +255,7 @@ export default function Progress() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [metric, setMetric] = useState<Metric>("intensity");
   const [pbOpen, setPbOpen] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
 
   useEffect(() => {
     const s = getSessions();
@@ -295,7 +298,7 @@ export default function Progress() {
   if (sessions.length === 0) {
     return (
       <div className="flex flex-col min-h-full pb-24">
-        <Header />
+        <Header onCalClick={() => setCalOpen(true)} />
         <div className="flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
             <BarChart2 className="w-8 h-8 text-muted-foreground" />
@@ -311,7 +314,8 @@ export default function Progress() {
 
   return (
     <div className="flex flex-col min-h-full pb-24">
-      <Header />
+      <Header onCalClick={() => setCalOpen(true)} />
+      <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-5">
         {/* Exercise picker — drives the whole page */}
@@ -476,13 +480,171 @@ export default function Progress() {
   );
 }
 
-function Header() {
+function Header({ onCalClick }: { onCalClick: () => void }) {
   return (
     <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="max-w-lg mx-auto px-4 py-4">
-        <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
-        <p className="text-xs text-muted-foreground mt-0.5">Every session, your strength journey</p>
+      <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">Every session, your strength journey</p>
+        </div>
+        <button
+          onClick={onCalClick}
+          className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Gym calendar"
+        >
+          <CalendarDays className="w-4.5 h-4.5" />
+        </button>
       </div>
     </div>
+  );
+}
+
+// ─── Calendar Modal ───────────────────────────────────────────────────────────
+
+const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const CAL_DOW = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+
+function dayKey(year: number, month: number, day: number) {
+  return `${year}-${month}-${day}`;
+}
+
+function CalendarModal({ open, onClose, sessions }: {
+  open: boolean;
+  onClose: () => void;
+  sessions: WorkoutSession[];
+}) {
+  const [month, setMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const gymDays = useMemo(() => {
+    const s = new Set<string>();
+    for (const sess of sessions) {
+      const d = new Date(sess.startedAt);
+      s.add(dayKey(d.getFullYear(), d.getMonth(), d.getDate()));
+    }
+    return s;
+  }, [sessions]);
+
+  const selectedSessions = useMemo(() => {
+    if (!selected) return [];
+    const [y, m, d] = selected.split("-").map(Number);
+    return sessions.filter((s) => {
+      const sd = new Date(s.startedAt);
+      return sd.getFullYear() === y && sd.getMonth() === m && sd.getDate() === d;
+    });
+  }, [selected, sessions]);
+
+  const year = month.getFullYear();
+  const monthIdx = month.getMonth();
+  const firstDow = new Date(year, monthIdx, 1).getDay();
+  const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+
+  const today = new Date();
+  const isToday = (d: number) =>
+    today.getFullYear() === year && today.getMonth() === monthIdx && today.getDate() === d;
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden gap-0">
+        {/* Month navigation */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <button
+            onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <span className="font-bold text-sm">{CAL_MONTHS[monthIdx]} {year}</span>
+          <button
+            onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+            className="p-1.5 rounded-lg hover:bg-muted transition-colors"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Day-of-week headers */}
+        <div className="grid grid-cols-7 px-4 mb-1">
+          {CAL_DOW.map((d) => (
+            <div key={d} className="text-center text-[10px] font-semibold text-muted-foreground py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Day cells */}
+        <div className="grid grid-cols-7 px-4 gap-y-1 pb-4">
+          {Array.from({ length: firstDow }).map((_, i) => <div key={`e${i}`} />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const day = i + 1;
+            const key = dayKey(year, monthIdx, day);
+            const hasSession = gymDays.has(key);
+            const isSel = selected === key;
+            const todayCell = isToday(day);
+            return (
+              <button
+                key={day}
+                onClick={() => hasSession && setSelected(isSel ? null : key)}
+                disabled={!hasSession}
+                className={`mx-auto w-8 h-8 flex items-center justify-center rounded-full text-sm font-medium transition-all ${
+                  isSel
+                    ? "bg-primary text-primary-foreground"
+                    : hasSession
+                    ? "bg-primary/20 text-primary font-bold hover:bg-primary/35"
+                    : todayCell
+                    ? "ring-1 ring-border text-foreground"
+                    : "text-muted-foreground/50 cursor-default"
+                }`}
+              >
+                {day}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-5 pb-3 border-t border-border/40 pt-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded-full bg-primary/20" />
+            <span className="text-[11px] text-muted-foreground">Gym day</span>
+          </div>
+          <span className="text-[11px] text-muted-foreground">{gymDays.size} sessions logged</span>
+        </div>
+
+        {/* Day detail */}
+        {selectedSessions.length > 0 && (
+          <div className="border-t border-border max-h-64 overflow-y-auto">
+            {selectedSessions.map((s) => (
+              <div key={s.id} className="px-4 py-3 border-b border-border/30 last:border-0">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-sm">{s.templateName}</span>
+                  {s.durationSeconds && (
+                    <span className="text-[11px] text-muted-foreground">
+                      {Math.floor(s.durationSeconds / 60)}m {s.durationSeconds % 60}s
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-col gap-1">
+                  {s.exercises.map((ex) => {
+                    const done = ex.sets.filter((set) => set.completed);
+                    if (done.length === 0) return null;
+                    return (
+                      <div key={ex.id} className="text-xs">
+                        <span className="font-medium">{ex.exerciseName}: </span>
+                        <span className="text-muted-foreground font-mono">
+                          {done.slice(0, 4).map((set) =>
+                            `${set.weight > 0 ? set.weight + "kg" : "BW"}×${set.reps}`
+                          ).join(", ")}
+                          {done.length > 4 ? ` +${done.length - 4}` : ""}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
