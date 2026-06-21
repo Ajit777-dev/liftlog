@@ -625,20 +625,21 @@ function ExerciseCard({
   const completedSets = exercise.sets.filter((s) => s.completed).length;
   const totalSets = exercise.sets.length;
   const allDone = completedSets === totalSets && totalSets > 0;
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyPos, setHistoryPos] = useState({ top: 0, right: 0 });
+  const clockBtnRef = useRef<HTMLButtonElement>(null);
 
   const lastData = getLastSessionDataForExercise(exercise.exerciseId, sessionId);
   const lastSets = lastData?.sets.filter((s) => s.completed && s.reps > 0) ?? [];
-  const lastLine = lastSets.length
-    ? lastSets
-        .slice(0, 3)
-        .map((s) => {
-          const base = `${s.weight > 0 ? `${s.weight}kg` : "BW"}×${s.reps}`;
-          const typeShort = SET_TYPE_CONFIG[s.type]?.short ?? "N";
-          const partial = s.partialReps ? ` +${s.partialReps}p` : "";
-          return `${base} (${typeShort})${partial}`;
-        })
-        .join(" · ") + (lastSets.length > 3 ? ` +${lastSets.length - 3}` : "")
-    : null;
+
+  const openHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (clockBtnRef.current) {
+      const rect = clockBtnRef.current.getBoundingClientRect();
+      setHistoryPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+    setHistoryOpen((o) => !o);
+  };
 
   return (
     <div
@@ -676,20 +677,61 @@ function ExerciseCard({
 
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
-            {/* Last session's lifts — only visible when card is open */}
-            {lastLine && expanded ? (
-              <p className="text-[11px] text-muted-foreground truncate flex items-center gap-1 mt-0.5 font-mono">
-                <Clock className="w-3 h-3 flex-shrink-0" />
-                {lastLine}
-              </p>
-            ) : exercise.muscleGroup ? (
+            {exercise.muscleGroup && (
               <p className="text-[11px] text-muted-foreground">{exercise.muscleGroup}</p>
-            ) : null}
+            )}
           </div>
         </button>
 
         <div className="flex items-center gap-1 flex-shrink-0">
           {allDone && <Check className="w-4 h-4 text-primary" />}
+
+          {/* Previous session history button */}
+          {lastSets.length > 0 && (
+            <>
+              <button
+                ref={clockBtnRef}
+                onClick={openHistory}
+                className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
+                  historyOpen ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted/60"
+                }`}
+                title="Previous session"
+              >
+                <Clock className="w-4 h-4" />
+              </button>
+
+              {historyOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setHistoryOpen(false)} />
+                  <div
+                    className="fixed z-50 rounded-xl border border-border bg-card shadow-xl p-3 w-56"
+                    style={{ top: historyPos.top, right: historyPos.right }}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                      Last Session
+                    </p>
+                    <div className="flex flex-col gap-1.5">
+                      {lastSets.map((s, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
+                          <span className="text-muted-foreground w-3.5">{i + 1}</span>
+                          <span className="font-semibold">
+                            {s.weight > 0 ? `${s.weight}kg` : "BW"}×{s.reps}
+                          </span>
+                          <span className="text-muted-foreground">
+                            ({SET_TYPE_CONFIG[s.type]?.short ?? "N"})
+                          </span>
+                          {(s.partialReps ?? 0) > 0 && (
+                            <span className="text-orange-400">+{s.partialReps}p</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
