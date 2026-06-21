@@ -283,6 +283,13 @@ export function getPersonalBest(exerciseId: string): PersonalBest | undefined {
   );
 }
 
+export function deletePersonalBest(exerciseId: string): void {
+  const pbs = load<PersonalBest>(KEYS.personalBests).filter(
+    (pb) => pb.exerciseId !== exerciseId
+  );
+  save(KEYS.personalBests, pbs);
+}
+
 function updatePersonalBests(session: WorkoutSession): void {
   const pbs = load<PersonalBest>(KEYS.personalBests);
 

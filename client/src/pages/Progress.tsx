@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   TrendingUp, TrendingDown, Trophy,
-  Search, X, ChevronDown, BarChart2,
+  Search, X, ChevronDown, BarChart2, Trash2,
 } from "lucide-react";
 import {
-  getSessions, getPersonalBests, getExercises,
+  getSessions, getPersonalBests, getExercises, deletePersonalBest,
 } from "@/lib/storage";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
 import { formatDate, calcIntensity, topWeight } from "@/lib/hooks";
@@ -261,6 +261,11 @@ export default function Progress() {
     setExercises(getExercises());
   }, []);
 
+  const handleDeletePb = (exerciseId: string) => {
+    deletePersonalBest(exerciseId);
+    setPbs((prev) => prev.filter((pb) => pb.exerciseId !== exerciseId));
+  };
+
   // Only exercises the user has actually logged — keeps the picker meaningful.
   const loggedExercises = useMemo(
     () => exercises.filter((ex) => sessions.some((s) => s.exercises.some((e) => e.exerciseId === ex.id))),
@@ -447,11 +452,19 @@ export default function Progress() {
             {pbOpen && (
               <div className="divide-y divide-border/30 border-t border-border/50">
                 {pbs.map((pb) => (
-                  <div key={pb.exerciseId} className="flex items-center justify-between px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
-                    <span className="text-sm font-medium truncate pr-2">{pb.exerciseName}</span>
+                  <div key={pb.exerciseId} className="flex items-center gap-2 px-4 py-2.5" data-testid={`row-pb-${pb.exerciseId}`}>
+                    <span className="text-sm font-medium truncate flex-1">{pb.exerciseName}</span>
                     <span className="text-sm font-bold font-mono whitespace-nowrap">
                       {pb.weight > 0 ? `${pb.weight}kg` : "BW"} × {pb.reps}
                     </span>
+                    <button
+                      onClick={() => handleDeletePb(pb.exerciseId)}
+                      className="p-1 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors flex-shrink-0"
+                      title="Delete record"
+                      data-testid={`button-delete-pb-${pb.exerciseId}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>

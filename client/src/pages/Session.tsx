@@ -26,11 +26,36 @@ import {
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
 import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight } from "@/lib/hooks";
+import { useTheme } from "@/lib/theme";
+
+// Map a session's dominant muscle group to a cute character + appropriate animation.
+function cuteWorkoutChar(session: WorkoutSession | null): { emoji: string; anim: string } {
+  if (!session) return { emoji: "🐱", anim: "cute-bounce" };
+  const groups = session.exercises.map((e) => e.muscleGroup ?? "Other");
+  const counts: Record<string, number> = {};
+  for (const g of groups) counts[g] = (counts[g] ?? 0) + 1;
+  const dominant = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "Other";
+  const map: Record<string, { emoji: string; anim: string }> = {
+    Chest:      { emoji: "🐱", anim: "cute-lift"   },
+    Shoulders:  { emoji: "🐯", anim: "cute-lift"   },
+    Triceps:    { emoji: "🐱", anim: "cute-lift"   },
+    Back:       { emoji: "🐰", anim: "cute-lift"   },
+    Biceps:     { emoji: "🐰", anim: "cute-wiggle" },
+    Legs:       { emoji: "🐶", anim: "cute-squat"  },
+    Glutes:     { emoji: "🐶", anim: "cute-squat"  },
+    Core:       { emoji: "🐸", anim: "cute-dance"  },
+    Cardio:     { emoji: "🐰", anim: "cute-run"    },
+    "Full Body":{ emoji: "🦁", anim: "cute-dance"  },
+    Other:      { emoji: "🐹", anim: "cute-bounce" },
+  };
+  return map[dominant] ?? { emoji: "🐱", anim: "cute-bounce" };
+}
 
 export default function Session() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const templateId = params.id;
+  const { cute } = useTheme();
 
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -366,13 +391,32 @@ export default function Session() {
               >
                 <X className="w-5 h-5" />
               </Button>
-              <div>
-                <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-                  <span className="text-xs text-primary font-mono font-semibold tabular-nums">
-                    {formatDuration(elapsed)}
-                  </span>
+              <div className="flex items-center gap-2">
+                {cute && (() => {
+                  const { emoji, anim } = cuteWorkoutChar(session);
+                  return (
+                    <span
+                      aria-hidden
+                      style={{
+                        fontSize: "1.9rem",
+                        lineHeight: 1,
+                        display: "block",
+                        animation: `${anim} 1.6s ease-in-out infinite`,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {emoji}
+                    </span>
+                  );
+                })()}
+                <div>
+                  <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="text-xs text-primary font-mono font-semibold tabular-nums">
+                      {formatDuration(elapsed)}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

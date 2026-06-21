@@ -374,4 +374,38 @@ html.cute {
   .pulse-once {
     animation: pulse-once 0.2s ease-out;
   }
+
+  /* ── Cute-mode character animations ────────────────────────────── */
+  @keyframes cute-bounce {
+    0%, 100% { transform: translateY(0) rotate(-4deg) scale(1); }
+    45%       { transform: translateY(-16px) rotate(4deg) scale(1.06); }
+  }
+  @keyframes cute-dance {
+    0%   { transform: rotate(-10deg) translateY(0); }
+    25%  { transform: rotate(0deg)   translateY(-10px); }
+    50%  { transform: rotate(10deg)  translateY(0); }
+    75%  { transform: rotate(0deg)   translateY(-6px); }
+    100% { transform: rotate(-10deg) translateY(0); }
+  }
+  @keyframes cute-wiggle {
+    0%, 100% { transform: rotate(-8deg) scale(1); }
+    50%      { transform: rotate(8deg)  scale(1.08); }
+  }
+  @keyframes cute-float {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50%      { transform: translateY(-10px) scale(1.04); }
+  }
+  @keyframes cute-lift {
+    0%, 100% { transform: translateY(0)  scaleY(1); }
+    40%, 60% { transform: translateY(-10px) scaleY(1.06); }
+  }
+  @keyframes cute-run {
+    0%, 100% { transform: translateX(0)  rotate(-6deg); }
+    25%      { transform: translateX(-5px) rotate(4deg); }
+    75%      { transform: translateX(5px)  rotate(-4deg); }
+  }
+  @keyframes cute-squat {
+    0%, 100% { transform: scaleY(1)    translateY(0); }
+    50%      { transform: scaleY(0.82) translateY(5px); }
+  }
 }
