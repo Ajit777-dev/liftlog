@@ -134,6 +134,60 @@
   --shadow-2xl: 0px 25px 50px -12px rgba(0,0,0,0.65);
 }
 
+/* CUTE MODE — soft pastel pink, playful font, teddy-bear vibes.
+   Token overrides only; cascades across the whole app. Wins over .dark
+   thanks to the html element + class specificity. Purely cosmetic. */
+html.cute {
+  --button-outline: rgba(190, 24, 93, .12);
+  --badge-outline: rgba(190, 24, 93, .08);
+  --opaque-button-border-intensity: -8;
+  --elevate-1: rgba(190, 24, 93, .04);
+  --elevate-2: rgba(190, 24, 93, .09);
+
+  --background: 340 70% 97%;
+  --foreground: 328 45% 24%;
+  --border: 338 55% 89%;
+  --card: 0 0% 100%;
+  --card-foreground: 328 45% 24%;
+  --card-border: 338 60% 92%;
+  --sidebar: 340 70% 96%;
+  --sidebar-foreground: 328 45% 24%;
+  --sidebar-border: 338 55% 89%;
+  --sidebar-primary: 330 82% 60%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 322 60% 92%;
+  --sidebar-accent-foreground: 328 45% 24%;
+  --sidebar-ring: 330 82% 60%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 328 45% 24%;
+  --popover-border: 338 60% 92%;
+  --primary: 330 82% 60%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 330 60% 93%;
+  --secondary-foreground: 328 40% 34%;
+  --muted: 335 58% 94%;
+  --muted-foreground: 330 22% 52%;
+  --accent: 275 65% 66%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 350 78% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 338 48% 86%;
+  --ring: 330 82% 62%;
+  --chart-1: 330 82% 60%;
+  --chart-2: 275 65% 66%;
+  --chart-3: 175 55% 45%;
+  --chart-4: 32 95% 60%;
+  --chart-5: 350 78% 62%;
+
+  --font-sans: 'Comic Sans MS', 'Chalkboard SE', 'Marker Felt', 'Inter', system-ui, cursive, sans-serif;
+
+  /* Soft pink shadows instead of harsh black */
+  --shadow-sm: 0px 2px 8px -2px rgba(236, 72, 153, 0.18);
+  --shadow: 0px 4px 12px -2px rgba(236, 72, 153, 0.18);
+  --shadow-lg: 0px 12px 24px -6px rgba(236, 72, 153, 0.22);
+  --shadow-xl: 0px 20px 32px -8px rgba(236, 72, 153, 0.24);
+}
+
 @layer base {
   * {
     @apply border-border;

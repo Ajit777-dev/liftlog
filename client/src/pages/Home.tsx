@@ -15,6 +15,7 @@ import {
 import type { WorkoutTemplate } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
 import { LiftLogLogo } from "@/components/LiftLogLogo";
+import { useTheme } from "@/lib/theme";
 
 const TEMPLATE_COLORS = [
   "#3b82f6", "#f97316", "#22c55e", "#a855f7",
@@ -23,6 +24,7 @@ const TEMPLATE_COLORS = [
 
 export default function Home() {
   const [, navigate] = useLocation();
+  const { cute, toggle } = useTheme();
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [activeSession, setActiveSession] = useState(getActiveSession());
   const [showCreate, setShowCreate] = useState(false);
@@ -87,15 +89,31 @@ export default function Home() {
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={() => setShowCreate(true)}
-            data-testid="button-create-template"
-            className="gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            New
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggle}
+              aria-pressed={cute}
+              data-testid="button-cute-toggle"
+              title={cute ? "Switch to default theme" : "Switch to cute mode"}
+              className={`flex items-center gap-1.5 h-9 px-3 rounded-full text-sm font-semibold border transition-colors active:scale-95 ${
+                cute
+                  ? "bg-primary text-primary-foreground border-primary-border"
+                  : "bg-muted/60 text-muted-foreground border-border"
+              }`}
+            >
+              <span className="text-base leading-none">🧸</span>
+              <span>Cute</span>
+            </button>
+            <Button
+              size="sm"
+              onClick={() => setShowCreate(true)}
+              data-testid="button-create-template"
+              className="gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              New
+            </Button>
+          </div>
         </div>
       </div>
 
