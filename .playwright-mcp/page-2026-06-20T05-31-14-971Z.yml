@@ -1,0 +1,91 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - main [ref=e4]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - heading "Progress" [level=1] [ref=e8]
+          - paragraph [ref=e9]: Every session, your strength journey
+        - generic [ref=e10]:
+          - generic [ref=e11]:
+            - generic [ref=e12]:
+              - img [ref=e14]
+              - generic [ref=e20]: "3"
+              - generic [ref=e21]: Workouts
+            - generic [ref=e22]:
+              - img [ref=e24]
+              - generic [ref=e26]: "3"
+              - generic [ref=e27]: Day streak
+            - generic [ref=e28]:
+              - img [ref=e30]
+              - generic [ref=e33]: "3"
+              - generic [ref=e34]: This week
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - img [ref=e37]
+              - generic [ref=e43]: Personal Bests
+            - generic [ref=e44]:
+              - generic [ref=e45]:
+                - generic [ref=e46]: Bench Press
+                - generic [ref=e47]: 82.5kg × 8
+              - generic [ref=e48]:
+                - generic [ref=e49]: Squat
+                - generic [ref=e50]: 110kg × 6
+              - generic [ref=e51]:
+                - generic [ref=e52]: Pull-Up
+                - generic [ref=e53]: 10kg × 8
+              - generic [ref=e54]:
+                - generic [ref=e55]: Overhead Press
+                - generic [ref=e56]: 57.5kg × 8
+              - generic [ref=e57]:
+                - generic [ref=e58]: Barbell Row
+                - generic [ref=e59]: 95kg × 8
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - heading "Track an exercise" [level=2] [ref=e62]
+              - button "Bench Press" [ref=e64] [cursor=pointer]:
+                - img [ref=e65]
+                - generic [ref=e68]: Bench Press
+                - img [ref=e69]
+            - generic [ref=e71]:
+              - generic [ref=e73]:
+                - paragraph [ref=e74]: Latest · 19 Jun
+                - paragraph [ref=e75]: 3.0kkg
+              - generic [ref=e76]:
+                - button "Volume" [ref=e77] [cursor=pointer]
+                - button "Top Weight" [ref=e78] [cursor=pointer]
+                - button "Total Reps" [ref=e79] [cursor=pointer]
+              - paragraph [ref=e80]: One session logged — train this again to see your trend.
+              - generic [ref=e81]:
+                - paragraph [ref=e82]: Recent sessions
+                - generic [ref=e84]:
+                  - generic [ref=e85]:
+                    - generic [ref=e86]: Yesterday
+                    - generic [ref=e87]: 3.0k kg vol
+                  - generic [ref=e88]:
+                    - generic [ref=e89]: 80kg × 10
+                    - generic [ref=e90]: 80kg × 10
+                    - generic [ref=e91]:
+                      - text: 82.5kg × 8
+                      - generic [ref=e92]: +2p
+                    - generic [ref=e93]:
+                      - text: 82.5kg × 7
+                      - generic [ref=e94]: +3p
+    - navigation [ref=e95]:
+      - generic [ref=e96]:
+        - link "Workout" [ref=e97] [cursor=pointer]:
+          - /url: /
+          - button "Workout" [ref=e98]:
+            - img [ref=e99]
+            - generic [ref=e105]: Workout
+        - link "Exercises" [ref=e106] [cursor=pointer]:
+          - /url: /exercises
+          - button "Exercises" [ref=e107]:
+            - img [ref=e108]
+            - generic [ref=e110]: Exercises
+        - link "Progress" [ref=e111] [cursor=pointer]:
+          - /url: /progress
+          - button "Progress" [ref=e112]:
+            - img [ref=e113]
+            - generic [ref=e114]: Progress

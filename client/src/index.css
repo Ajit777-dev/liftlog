@@ -47,10 +47,10 @@
   --chart-4: 300 72% 55%;
   --chart-5: 0 80% 55%;
 
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-serif: Georgia, serif;
-  --font-mono: Menlo, monospace;
-  --radius: .5rem;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'SFMono-Regular', Menlo, monospace;
+  --radius: .85rem;
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.06);
   --shadow-xs: 0px 1px 3px 0px rgba(0,0,0,0.08);
   --shadow-sm: 0px 2px 4px -1px rgba(0,0,0,0.10);
@@ -85,35 +85,39 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 224 20% 8%;
-  --foreground: 210 15% 94%;
-  --border: 224 15% 18%;
-  --card: 224 18% 11%;
-  --card-foreground: 210 15% 94%;
-  --card-border: 224 15% 16%;
-  --sidebar: 224 20% 7%;
-  --sidebar-foreground: 210 15% 94%;
-  --sidebar-border: 224 15% 15%;
-  --sidebar-primary: 217 91% 60%;
+  /* Refined premium dark: near-black graphite, hairline borders, cleanly
+     layered surfaces, one deep-blue signature accent. */
+  --background: 224 22% 4.5%;
+  --foreground: 210 16% 97%;
+  --border: 222 12% 14%;
+  --card: 222 18% 7.5%;
+  --card-foreground: 210 16% 97%;
+  --card-border: 222 12% 13%;
+  --sidebar: 224 24% 4%;
+  --sidebar-foreground: 210 16% 97%;
+  --sidebar-border: 222 12% 12%;
+  --sidebar-primary: 214 92% 60%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 224 18% 14%;
-  --sidebar-accent-foreground: 210 15% 94%;
-  --sidebar-ring: 217 91% 60%;
-  --popover: 224 18% 11%;
-  --popover-foreground: 210 15% 94%;
-  --popover-border: 224 15% 18%;
-  --primary: 217 91% 60%;
+  --sidebar-accent: 222 14% 11%;
+  --sidebar-accent-foreground: 210 16% 97%;
+  --sidebar-ring: 214 92% 60%;
+  --popover: 222 18% 8%;
+  --popover-foreground: 210 16% 97%;
+  --popover-border: 222 12% 14%;
+  --primary: 214 94% 60%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 224 18% 16%;
-  --secondary-foreground: 210 15% 85%;
-  --muted: 224 15% 14%;
-  --muted-foreground: 220 10% 52%;
-  --accent: 28 90% 58%;
+  --secondary: 222 13% 13%;
+  --secondary-foreground: 210 14% 90%;
+  --muted: 222 13% 11%;
+  --muted-foreground: 220 9% 60%;
+  /* One signature accent only — the same blue as primary, so the whole
+     app stays monochrome + a single accent. */
+  --accent: 214 94% 60%;
   --accent-foreground: 0 0% 100%;
-  --destructive: 0 75% 58%;
+  --destructive: 2 78% 60%;
   --destructive-foreground: 0 0% 100%;
-  --input: 224 15% 22%;
-  --ring: 217 91% 60%;
+  --input: 222 12% 18%;
+  --ring: 214 94% 62%;
   --chart-1: 217 91% 60%;
   --chart-2: 28 90% 58%;
   --chart-3: 142 72% 48%;
@@ -135,8 +139,59 @@
     @apply border-border;
   }
 
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Tight, confident headings — the Apple touch */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.022em;
+  }
+  h1 { letter-spacing: -0.03em; }
+
+  /* Numbers never jitter as they change */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.28);
+  }
+
+  /* Smooth, premium micro-interactions on every control */
+  button, a, [role="button"], input, select, textarea {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      opacity 0.2s ease,
+      transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Subtle, tactile press feedback on every tappable control.
+     Component-level active:scale-* utilities still win (higher specificity). */
+  button:not(:disabled):active,
+  [role="button"]:not(:disabled):active {
+    transform: scale(0.975);
+  }
+
+  /* Refined keyboard focus — a quiet ring, never on mouse clicks */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.55);
+    outline-offset: 2px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 

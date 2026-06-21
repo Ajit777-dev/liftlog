@@ -1,0 +1,158 @@
+[     273ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:21608
+[     348ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5400/progress:0
+[ 1950202ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5400/@vite/client:864
+[ 1951509ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:21608
+[ 1951716ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5400/progress:0
+[24750692ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5400/@vite/client:864
+[24752106ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:21608
+[24752285ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5400/progress:0
+[27869552ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5400/@vite/client:864
+[27870023ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:21608
+[27870114ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5400/progress:0
+[50380443ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984592975:583:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50380451ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984592975:583:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50380456ms] [ERROR] The above error occurred in the <Progress> component:
+
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984592975:482:35)
+    at Route (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:322:16)
+    at Switch (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:378:17)
+    at main
+    at div
+    at Router (http://localhost:5400/src/App.tsx?t=1781935682294:37:22)
+    at Provider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-GCDFB7GK.js?v=35606db8:47:15)
+    at TooltipProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=35606db8:58:5)
+    at QueryClientProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@tanstack_react-query.js?v=35606db8:2747:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14079
+[50380488ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984592975:583:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19806:22)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+    at renderRootSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19169:15)
+    at recoverFromConcurrentError (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18786:28)
+    at performSyncWorkOnRoot (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18932:28)
+[50400633ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984613203:584:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50400644ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984613203:584:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50400632ms] [ERROR] The above error occurred in the <Progress> component:
+
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984613203:482:35)
+    at Route (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:322:16)
+    at Switch (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:378:17)
+    at main
+    at div
+    at Router (http://localhost:5400/src/App.tsx?t=1781935682294:37:22)
+    at Provider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-GCDFB7GK.js?v=35606db8:47:15)
+    at TooltipProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=35606db8:58:5)
+    at QueryClientProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@tanstack_react-query.js?v=35606db8:2747:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14079
+[50400649ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984613203:584:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19806:22)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+    at renderRootSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19169:15)
+    at recoverFromConcurrentError (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18786:28)
+    at performConcurrentWorkOnRoot (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18734:30)
+[50408371ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984620974:565:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50408372ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984620974:565:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at HTMLUnknownElement.callCallback2 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3680:22)
+    at Object.invokeGuardedCallbackDev (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3705:24)
+    at invokeGuardedCallback (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:3739:39)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19818:15)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+[50408371ms] [ERROR] The above error occurred in the <Progress> component:
+
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984620974:482:35)
+    at Route (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:322:16)
+    at Switch (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/wouter.js?v=35606db8:378:17)
+    at main
+    at div
+    at Router (http://localhost:5400/src/App.tsx?t=1781935682294:37:22)
+    at Provider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-GCDFB7GK.js?v=35606db8:47:15)
+    at TooltipProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@radix-ui_react-tooltip.js?v=35606db8:58:5)
+    at QueryClientProvider (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/@tanstack_react-query.js?v=35606db8:2747:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries. @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14079
+[50408372ms] ReferenceError: Dumbbell is not defined
+    at Progress (http://localhost:5400/src/pages/Progress.tsx?t=1781984620974:565:73)
+    at renderWithHooks (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:11596:26)
+    at updateFunctionComponent (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:14630:28)
+    at beginWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:15972:22)
+    at beginWork$1 (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19806:22)
+    at performUnitOfWork (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19251:20)
+    at workLoopSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19190:13)
+    at renderRootSync (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:19169:15)
+    at recoverFromConcurrentError (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18786:28)
+    at performConcurrentWorkOnRoot (http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:18734:30)
+[51928606ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5400/@vite/client:864
+[51929676ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:5400/@fs/Users/ajith/Downloads/MerryRecklessRobots/node_modules/.vite/deps/chunk-LPF6KSF2.js?v=35606db8:21608
+[51929862ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5400/progress:0

@@ -1,3 +1,4 @@
+import { Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LiftLogLogoProps {
@@ -5,21 +6,14 @@ interface LiftLogLogoProps {
   size?: number;
 }
 
+// Uses the same Lucide dumbbell as the nav so the logo, nav icon and app
+// icon are all identical.
 export function LiftLogLogo({ className, size = 24 }: LiftLogLogoProps) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <Dumbbell
+      size={size}
+      strokeWidth={2.25}
       className={cn("text-primary", className)}
-    >
-      <rect width="32" height="32" rx="4" fill="currentColor" opacity="0.1"/>
-      <rect x="6" y="10" width="20" height="2" fill="currentColor"/>
-      <rect x="6" y="14" width="20" height="2" fill="currentColor"/>
-      <rect x="6" y="18" width="14" height="2" fill="currentColor"/>
-      <circle cx="22" cy="19" r="2" fill="currentColor" opacity="0.8"/>
-    </svg>
+    />
   );
 }

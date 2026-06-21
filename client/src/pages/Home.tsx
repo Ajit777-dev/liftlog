@@ -80,8 +80,8 @@ export default function Home() {
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <LiftLogLogo size={20} />
-              <h1 className="text-xl font-bold tracking-tight">LiftLog</h1>
+              <LiftLogLogo size={24} />
+              <h1 className="text-2xl font-bold tracking-tight">LiftLog</h1>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -103,8 +103,8 @@ export default function Home() {
         {/* Active session banner */}
         {activeSession && (
           <div
-            className="rounded-xl p-4 flex items-center justify-between cursor-pointer animate-fade-in"
-            style={{ background: "linear-gradient(135deg, hsl(217 91% 55% / 0.2), hsl(217 91% 55% / 0.08))", border: "1px solid hsl(217 91% 55% / 0.3)" }}
+            className="rounded-2xl p-4 flex items-center justify-between cursor-pointer animate-fade-in active:scale-[0.99] transition-transform"
+            style={{ background: "linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.06))", border: "1px solid hsl(var(--primary) / 0.28)" }}
             onClick={() => navigate(`/session/${activeSession.templateId}`)}
             data-testid="banner-active-session"
           >
@@ -243,7 +243,7 @@ function TemplateCard({ template, lastSession, totalSets, onStart, onEdit, onDup
 
   return (
     <div
-      className="rounded-xl border border-card-border bg-card overflow-hidden animate-fade-in"
+      className="rounded-2xl border border-card-border bg-card overflow-hidden animate-fade-in shadow-sm shadow-black/20"
       data-testid={`card-template-${template.id}`}
     >
       {/* Color accent bar */}

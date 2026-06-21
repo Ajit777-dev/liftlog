@@ -9,7 +9,6 @@ import { seedIfEmpty } from "@/lib/storage";
 
 import Home from "@/pages/Home";
 import Session from "@/pages/Session";
-import History from "@/pages/History";
 import Exercises from "@/pages/Exercises";
 import Progress from "@/pages/Progress";
 import TemplateEditor from "@/pages/TemplateEditor";
@@ -33,7 +32,6 @@ function Router() {
         <Switch>
           <Route path="/" component={Home} />
           <Route path="/session/:id" component={Session} />
-          <Route path="/history" component={History} />
           <Route path="/exercises" component={Exercises} />
           <Route path="/progress" component={Progress} />
           <Route path="/template/:id/edit" component={TemplateEditor} />
