@@ -534,10 +534,12 @@ function CalendarModal({ open, onClose, sessions }: {
   if (!open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/80" onClick={onClose} />
-      <div className="relative z-50 w-full max-w-sm rounded-2xl bg-background border border-border shadow-xl overflow-hidden">
+    <>
+      <div className="fixed inset-0 z-[9998] bg-black/80" onClick={onClose} />
+      <div
+        className="fixed z-[9999] w-[calc(100vw-2rem)] max-w-sm rounded-2xl bg-background border border-border shadow-xl overflow-hidden"
+        style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+      >
         {/* Month navigation */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <button
@@ -640,7 +642,7 @@ function CalendarModal({ open, onClose, sessions }: {
           </div>
         )}
       </div>
-    </div>,
+    </>,
     document.body
   );
 }
