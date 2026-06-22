@@ -538,7 +538,7 @@ function CalendarModal({ open, onClose, sessions }: {
       <div className="fixed inset-0 z-[9998] bg-black/80" onClick={onClose} />
       <div
         className="fixed z-[9999] w-[calc(100vw-2rem)] max-w-sm rounded-2xl bg-background border border-border shadow-xl overflow-hidden"
-        style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
+        style={{ top: '50vh', left: '50vw', transform: 'translate(-50%, -50%)' }}
       >
         {/* Month navigation */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
