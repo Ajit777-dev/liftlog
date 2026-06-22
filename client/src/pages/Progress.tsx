@@ -7,7 +7,6 @@ import {
 import {
   getSessions, getPersonalBests, getExercises,
 } from "@/lib/storage";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
 import { formatDate, calcIntensity, topWeight } from "@/lib/hooks";
 
@@ -531,10 +530,13 @@ function CalendarModal({ open, onClose, sessions }: {
   const isToday = (d: number) =>
     today.getFullYear() === year && today.getMonth() === monthIdx && today.getDate() === d;
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      {/* [&>button]:hidden removes the default DialogContent X close button */}
-      <DialogContent className="max-w-sm mx-4 p-0 overflow-hidden gap-0 [&>button]:hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-black/80" onClick={onClose} />
+      <div className="relative z-50 w-full max-w-sm rounded-2xl bg-background border border-border shadow-xl overflow-hidden">
         {/* Month navigation */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <button
@@ -636,7 +638,7 @@ function CalendarModal({ open, onClose, sessions }: {
             ))}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
