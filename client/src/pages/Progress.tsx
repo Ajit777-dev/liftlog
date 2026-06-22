@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   TrendingUp, TrendingDown, Trophy,
   Search, X, ChevronDown, BarChart2,
@@ -532,7 +533,7 @@ function CalendarModal({ open, onClose, sessions }: {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/80" onClick={onClose} />
@@ -639,6 +640,7 @@ function CalendarModal({ open, onClose, sessions }: {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
