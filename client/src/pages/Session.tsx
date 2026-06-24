@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import {
   X, Plus, Check, ChevronDown, ChevronUp, Timer, Zap,
   TrendingUp, TrendingDown, Minus, AlertTriangle, Activity,
-  ArrowLeft, Trophy, Clock, MoreVertical, Trash2
+  ArrowLeft, Trophy, Clock, MoreVertical, Trash2, Edit2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,8 +25,9 @@ import {
   getLastSessionForTemplate
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
-import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight } from "@/lib/hooks";
+import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
+import { haptic } from "@/lib/haptics";
 
 const CUTE_EMOJI_SRCS: Record<string, string> = {
   bench_press:    "/cute-emojis/emoji_bunny_bench_press.png",
@@ -41,7 +42,7 @@ export default function Session() {
   const params = useParams<{ id: string }>();
   const [, navigate] = useLocation();
   const templateId = params.id;
-  const { cute } = useTheme();
+  const { cute, imperial } = useTheme();
 
   const [template, setTemplate] = useState<WorkoutTemplate | null>(null);
   const [session, setSession] = useState<WorkoutSession | null>(null);
@@ -192,7 +193,7 @@ export default function Session() {
     (exerciseId: string, setId: string, currentSet: WorkoutSet) => {
       const completed = !currentSet.completed;
       updateSet(exerciseId, setId, { completed });
-      if (completed) startRest(restTimerTarget);
+      if (completed) { haptic("tap"); startRest(restTimerTarget); }
     },
     [updateSet, startRest, restTimerTarget]
   );
@@ -215,10 +216,17 @@ export default function Session() {
 
   const finishWorkout = () => {
     if (!session) return;
+    haptic("success");
     const finished: WorkoutSession = {
       ...session,
       finishedAt: Date.now(),
       durationSeconds: elapsed,
+      exercises: session.exercises.map((ex) => ({
+        ...ex,
+        sets: ex.sets
+          .filter((s) => s.reps > 0 || s.weight > 0)
+          .map((s) => ({ ...s, completed: true })),
+      })).filter((ex) => ex.sets.length > 0),
     };
     saveSession(finished);
     clearActiveSession();
@@ -416,7 +424,7 @@ export default function Session() {
             <div className="flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-accent" />
               <span className="text-xs font-medium">
-                {totalVolume >= 1000 ? `${(totalVolume / 1000).toFixed(1)}k` : totalVolume.toFixed(0)} kg vol
+                {(() => { const v = toDisplay(totalVolume, imperial); return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0); })()} {unitLabel(imperial)} vol
               </span>
             </div>
             <div className="flex-1" />
@@ -475,6 +483,10 @@ export default function Session() {
             onToggleComplete={(setId, set) => toggleComplete(ex.id, setId, set)}
             onCompleteAll={() => completeExercise(ex.id)}
             onRemoveExercise={() => removeExercise(ex.id)}
+            onUpdateNote={(note) => updateSession((s) => ({
+              ...s,
+              exercises: s.exercises.map((e) => e.id !== ex.id ? e : { ...e, notes: note || undefined }),
+            }))}
           />
         ))}
 
@@ -616,17 +628,21 @@ interface ExerciseCardProps {
   onToggleComplete: (setId: string, set: WorkoutSet) => void;
   onCompleteAll: () => void;
   onRemoveExercise: () => void;
+  onUpdateNote: (note: string) => void;
 }
 
 function ExerciseCard({
   exercise, index, expanded, sessionId,
-  onToggleExpand, onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll, onRemoveExercise
+  onToggleExpand, onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll, onRemoveExercise, onUpdateNote
 }: ExerciseCardProps) {
+  const { imperial } = useTheme();
   const completedSets = exercise.sets.filter((s) => s.completed).length;
   const totalSets = exercise.sets.length;
   const allDone = completedSets === totalSets && totalSets > 0;
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPos, setHistoryPos] = useState({ top: 0, right: 0 });
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDraft, setNoteDraft] = useState(exercise.notes ?? "");
   const clockBtnRef = useRef<HTMLButtonElement>(null);
 
   const lastData = getLastSessionDataForExercise(exercise.exerciseId, sessionId);
@@ -676,7 +692,10 @@ function ExerciseCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
+            <div className="flex items-center gap-1.5">
+              <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
+              {exercise.notes && <Edit2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+            </div>
             {exercise.muscleGroup && (
               <p className="text-[11px] text-muted-foreground">{exercise.muscleGroup}</p>
             )}
@@ -715,7 +734,7 @@ function ExerciseCard({
                         <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
                           <span className="text-muted-foreground w-3.5">{i + 1}</span>
                           <span className="font-semibold">
-                            {s.weight > 0 ? `${s.weight}kg` : "BW"}×{s.reps}
+                            {s.weight > 0 ? `${toDisplay(s.weight, imperial)}${unitLabel(imperial)}` : "BW"}×{s.reps}
                           </span>
                           <span className="text-muted-foreground">
                             ({SET_TYPE_CONFIG[s.type]?.short ?? "N"})
@@ -743,6 +762,9 @@ function ExerciseCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setNoteDraft(exercise.notes ?? ""); setNoteOpen(true); }}>
+                <Edit2 className="w-3.5 h-3.5 mr-2" /> {exercise.notes ? "Edit note" : "Add note"}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={onRemoveExercise}
                 className="text-destructive focus:text-destructive"
@@ -752,6 +774,34 @@ function ExerciseCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Note modal */}
+          {noteOpen && (
+            <Dialog open onOpenChange={(o) => !o && setNoteOpen(false)}>
+              <DialogContent className="max-w-sm mx-4">
+                <DialogHeader><DialogTitle>Exercise Note</DialogTitle></DialogHeader>
+                <textarea
+                  autoFocus
+                  value={noteDraft}
+                  onChange={(e) => setNoteDraft(e.target.value)}
+                  placeholder="e.g. left shoulder clicking, go lighter next time…"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary resize-none"
+                  rows={3}
+                  maxLength={50}
+                />
+                <p className="text-[11px] text-muted-foreground text-right -mt-1">{noteDraft.length}/50</p>
+                <div className="flex gap-2 justify-end">
+                  {exercise.notes && (
+                    <Button variant="ghost" className="text-destructive" onClick={() => { onUpdateNote(""); setNoteOpen(false); }}>
+                      Delete
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={() => setNoteOpen(false)}>Cancel</Button>
+                  <Button onClick={() => { onUpdateNote(noteDraft.trim()); setNoteOpen(false); }}>Save</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           <button onClick={onToggleExpand} className="w-8 h-8 rounded-full flex items-center justify-center text-muted-foreground" data-testid={`button-chevron-exercise-${exercise.id}`}>
             {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
@@ -1077,6 +1127,7 @@ function ExerciseProgressSummary({
   exercise: SessionExercise;
   lastData: { sets: WorkoutSet[]; date: number } | null;
 }) {
+  const { imperial } = useTheme();
   const completedSets = exercise.sets.filter((s) => s.completed);
   if (completedSets.length === 0) return null;
 
@@ -1085,18 +1136,20 @@ function ExerciseProgressSummary({
   const intensity = Math.round(calcIntensity(completedSets));
   const bestWeight = topWeight(completedSets);
 
-  // Compare against the same exercise's last session, when available.
   const lastDone = lastData?.sets.filter((s) => s.completed) ?? [];
   const lastIntensity = lastDone.length ? Math.round(calcIntensity(lastDone)) : null;
   const lastWeight = lastDone.length ? topWeight(lastDone) : null;
   const intDelta = lastIntensity !== null ? intensity - lastIntensity : null;
   const wtDelta = lastWeight !== null ? bestWeight - lastWeight : null;
 
+  const dispBestWeight = toDisplay(bestWeight, imperial);
+  const dispWtDelta = wtDelta !== null ? Math.round(toDisplay(Math.abs(wtDelta), imperial) * 10) / 10 * Math.sign(wtDelta) : null;
+
   return (
     <div className="rounded-lg px-3 py-2.5 mb-1 bg-muted/40 border border-border/50">
       <div className="grid grid-cols-2 gap-2">
         <SummaryStat label="Intensity" value={`${intensity}`} color="text-primary" delta={intDelta} />
-        <SummaryStat label="Top Weight" value={`${bestWeight}kg`} color="text-foreground" delta={wtDelta} deltaUnit="kg" />
+        <SummaryStat label="Top Weight" value={`${dispBestWeight}${unitLabel(imperial)}`} color="text-foreground" delta={dispWtDelta} deltaUnit={unitLabel(imperial)} />
       </div>
       <p className="text-[11px] text-muted-foreground mt-2">
         {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}
@@ -1143,6 +1196,7 @@ const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: st
 const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
 
 function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
+  const { imperial } = useTheme();
   const typeConfig = SET_TYPE_CONFIG[set.type];
   const cycleType = () => {
     const idx = SET_TYPES.indexOf(set.type);
@@ -1191,11 +1245,11 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
       <div className="grid grid-cols-2 gap-3">
         <FieldBox label="Weight">
           <NumberInput
-            value={set.weight}
-            step={2.5}
+            value={toDisplay(set.weight, imperial)}
+            step={imperial ? 5 : 2.5}
             min={0}
-            suffix="kg"
-            onChange={(v) => onUpdate({ weight: v })}
+            suffix={unitLabel(imperial)}
+            onChange={(v) => onUpdate({ weight: fromDisplay(v, imperial) })}
             disabled={set.completed}
             testId={`input-weight-${set.id}`}
           />
@@ -1355,25 +1409,42 @@ function AddExerciseDialog({
           autoFocus
         />
         <ScrollArea className="h-64">
-          <div className="flex flex-col gap-1 pr-2">
+          <div className="flex flex-col pr-2">
             {filtered.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground py-8">No exercises found</p>
-            ) : (
+            ) : search.trim() ? (
               filtered.map((ex) => (
-                <button
-                  key={ex.id}
-                  onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
-                  className="flex items-center justify-between px-3 py-2.5 rounded-lg hover-elevate text-left bg-muted/30"
-                  data-testid={`button-select-exercise-${ex.id}`}
-                >
+                <button key={ex.id} onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-lg text-left bg-muted/30 mb-1"
+                  data-testid={`button-select-exercise-${ex.id}`}>
                   <div>
                     <p className="text-sm font-medium">{ex.name}</p>
-                    {ex.muscleGroup && (
-                      <p className="text-xs text-muted-foreground">{ex.muscleGroup}</p>
-                    )}
+                    {ex.muscleGroup && <p className="text-xs text-muted-foreground">{ex.muscleGroup}</p>}
                   </div>
                   <Plus className="w-4 h-4 text-primary" />
                 </button>
+              ))
+            ) : (
+              Object.entries(
+                filtered.reduce<Record<string, typeof filtered>>((acc, ex) => {
+                  const g = ex.muscleGroup ?? "Other";
+                  (acc[g] ??= []).push(ex);
+                  return acc;
+                }, {})
+              ).sort(([a], [b]) => a.localeCompare(b)).map(([group, exs]) => (
+                <div key={group}>
+                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/20 rounded-md mt-1">
+                    {group}
+                  </div>
+                  {exs.map((ex) => (
+                    <button key={ex.id} onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
+                      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left hover:bg-muted/30"
+                      data-testid={`button-select-exercise-${ex.id}`}>
+                      <p className="text-sm font-medium">{ex.name}</p>
+                      <Plus className="w-4 h-4 text-primary" />
+                    </button>
+                  ))}
+                </div>
               ))
             )}
           </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, Dumbbell, ChevronRight, Trophy } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Dumbbell, ChevronRight, ChevronDown, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -271,21 +271,20 @@ export default function Exercises() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Muscle Group</Label>
-              <Select
-                value={form.muscleGroup}
-                onValueChange={(v) => setForm((f) => ({ ...f, muscleGroup: v }))}
-              >
-                <SelectTrigger data-testid="select-muscle-group">
-                  <SelectValue placeholder="Select muscle group" />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="relative">
+                <select
+                  value={form.muscleGroup}
+                  onChange={(e) => setForm((f) => ({ ...f, muscleGroup: e.target.value }))}
+                  data-testid="select-muscle-group"
+                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="">Select muscle group</option>
                   {MUSCLE_GROUPS.map((mg) => (
-                    <SelectItem key={mg} value={mg}>
-                      {mg}
-                    </SelectItem>
+                    <option key={mg} value={mg}>{mg}</option>
                   ))}
-                </SelectContent>
-              </Select>
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              </div>
             </div>
           </div>
           <DialogFooter>

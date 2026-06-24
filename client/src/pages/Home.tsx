@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, ChevronRight, Clock, Dumbbell, Copy, Trash2, Edit2, MoreHorizontal, Play, Settings } from "lucide-react";
+import { Plus, ChevronRight, Clock, Dumbbell, Copy, Trash2, Edit2, MoreHorizontal, Play, Settings, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getTemplates, createTemplate, deleteTemplate, duplicateTemplate,
-  updateTemplate, getActiveSession, getLastSessionForTemplate
+  updateTemplate, getActiveSession, getLastSessionForTemplate,
+  getExercises, exportBackup, importBackup,
 } from "@/lib/storage";
-import type { WorkoutTemplate } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import type { WorkoutTemplate, WorkoutSession } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
 import { LiftLogLogo } from "@/components/LiftLogLogo";
 import { useTheme } from "@/lib/theme";
@@ -38,12 +40,54 @@ function cuteEmojiSrc(id: string) {
 
 export default function Home() {
   const [, navigate] = useLocation();
-  const { cute, toggle } = useTheme();
+  const { cute, toggle, imperial, toggleUnits } = useTheme();
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [activeSession, setActiveSession] = useState(getActiveSession());
   const [showCreate, setShowCreate] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [editTemplate, setEditTemplate] = useState<WorkoutTemplate | null>(null);
   const [form, setForm] = useState({ name: "", description: "", color: TEMPLATE_COLORS[0], cuteEmoji: "" });
+  const { toast } = useToast();
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExport = () => {
+    const backup = exportBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `liftlog-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast({ title: "Backup saved", description: `${backup.data.sessions.length} sessions exported.` });
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file) return;
+    if (!window.confirm("Importing replaces all current workouts and history with the backup. Continue?")) return;
+    try {
+      const text = await file.text();
+      const result = importBackup(JSON.parse(text));
+      toast({
+        title: "Backup restored",
+        description: `${result.templates} workouts · ${result.sessions} sessions imported.`,
+      });
+      setShowSettings(false);
+      setTemplates(getTemplates());
+      setActiveSession(getActiveSession());
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Couldn't import",
+        description: err instanceof Error ? err.message : "The file couldn't be read.",
+      });
+    }
+  };
 
   useEffect(() => {
     setTemplates(getTemplates());
@@ -100,17 +144,12 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={toggle}
-              aria-pressed={cute}
-              data-testid="button-cute-toggle"
-              title={cute ? "Switch to default theme" : "Switch to cute mode"}
-              className={`flex items-center gap-1.5 h-9 px-3 rounded-full text-sm font-semibold border transition-colors active:scale-95 ${
-                cute
-                  ? "bg-primary text-primary-foreground border-primary-border"
-                  : "bg-muted/60 text-muted-foreground border-border"
-              }`}
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+              data-testid="button-settings"
+              className="flex items-center justify-center h-9 w-9 rounded-full border border-border bg-muted/60 text-muted-foreground transition-colors active:scale-95 hover:text-foreground"
             >
-              Cute
+              <Settings className="w-4 h-4" />
             </button>
             <Button
               size="sm"
@@ -277,6 +316,167 @@ export default function Home() {
               {editTemplate ? "Save" : "Create"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="max-w-sm mx-4">
+          <DialogHeader>
+            <DialogTitle>Settings</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 flex flex-col gap-5">
+            {/* Unit system */}
+            <div>
+              <Label className="text-sm font-medium">Unit system</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Choose how weights are shown across the app.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { val: false, title: "Metric", sub: "kg" },
+                  { val: true, title: "Imperial", sub: "lbs" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.title}
+                    onClick={() => { if (imperial !== opt.val) toggleUnits(); }}
+                    aria-pressed={imperial === opt.val}
+                    data-testid={`button-unit-${opt.title.toLowerCase()}`}
+                    className={`flex flex-col items-center gap-0.5 rounded-xl border py-3 transition-colors active:scale-95 ${
+                      imperial === opt.val
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/40 text-muted-foreground border-border hover:text-foreground"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold">{opt.title}</span>
+                    <span className="text-xs opacity-80">{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Theme */}
+            <div>
+              <Label className="text-sm font-medium">Theme</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Switch between the default and cute bunny theme.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { val: false, title: "Default", sub: "💪" },
+                  { val: true, title: "Cute", sub: "🐰" },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.title}
+                    onClick={() => { if (cute !== opt.val) toggle(); }}
+                    aria-pressed={cute === opt.val}
+                    data-testid={`button-theme-${opt.title.toLowerCase()}`}
+                    className={`flex flex-col items-center gap-0.5 rounded-xl border py-3 transition-colors active:scale-95 ${
+                      cute === opt.val
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-muted/40 text-muted-foreground border-border hover:text-foreground"
+                    }`}
+                  >
+                    <span className="text-sm font-semibold">{opt.title}</span>
+                    <span className="text-xs opacity-80">{opt.sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Data backup */}
+            <div className="border-t border-border/40 pt-4">
+              <Label className="text-sm font-medium">Your data</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Save a backup file, or restore one. Everything stays on your device.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleExport}
+                  data-testid="button-export-backup"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  data-testid="button-import-backup"
+                  className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
+                >
+                  <Upload className="w-4 h-4" />
+                  Import
+                </button>
+              </div>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json,.json"
+                onChange={handleImportFile}
+                className="hidden"
+                data-testid="input-import-backup"
+              />
+            </div>
+
+            {/* Dev tools */}
+            <div className="border-t border-border/40 pt-4">
+              <Label className="text-sm font-medium">Developer</Label>
+              <p className="text-xs text-muted-foreground mt-0.5 mb-3">
+                Seed 1 year of progressive workout data for testing.
+              </p>
+              <button
+                onClick={() => {
+                  const exercises = getExercises();
+                  if (exercises.length === 0) { alert("Add at least one exercise first."); return; }
+                  const now = Date.now();
+                  const DAY = 86400000;
+                  const start = now - 365 * DAY;
+                  const sessions: WorkoutSession[] = [];
+                  for (let week = 0; week < 52; week++) {
+                    for (const dayOff of [1, 3, 5]) {
+                      const ts = start + (week * 7 + dayOff) * DAY;
+                      if (ts > now) break;
+                      const picked = exercises.slice(0, Math.min(4, exercises.length));
+                      sessions.push({
+                        id: `seed_${ts}`,
+                        templateId: "seed",
+                        templateName: ["Push Day","Pull Day","Leg Day"][week % 3],
+                        startedAt: ts,
+                        finishedAt: ts + 3600000,
+                        durationSeconds: 3600,
+                        cardio: [],
+                        exercises: picked.map((ex, ei) => {
+                          const base = 20 + ei * 10;
+                          const w = Math.round((base + week * 0.5) * 4) / 4;
+                          const setCount = 3 + (week > 26 ? 1 : 0);
+                          return {
+                            id: `seed_e_${ts}_${ei}`,
+                            exerciseId: ex.id,
+                            exerciseName: ex.name,
+                            sets: Array.from({ length: setCount }, (_, si) => ({
+                              id: `seed_s_${ts}_${ei}_${si}`,
+                              weight: w,
+                              reps: Math.max(4, 10 - Math.floor(week / 12) + (si === setCount - 1 ? -1 : 0)),
+                              partialReps: 0,
+                              type: "normal" as const,
+                              completed: true,
+                            })),
+                          };
+                        }),
+                      });
+                    }
+                  }
+                  const existing = JSON.parse(localStorage.getItem("liftlog_sessions") || "[]");
+                  localStorage.setItem("liftlog_sessions", JSON.stringify([...existing, ...sessions]));
+                  setShowSettings(false);
+                  alert(`Seeded ${sessions.length} sessions. Reload the app to see them.`);
+                }}
+                className="w-full rounded-xl border border-dashed border-border py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+              >
+                Generate 1 year of test data
+              </button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

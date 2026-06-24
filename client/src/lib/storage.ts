@@ -29,6 +29,79 @@ function save<T>(key: string, data: T[]): void {
   localStorage.setItem(key, JSON.stringify(data));
 }
 
+// ─── Backup: export / import ────────────────────────────────────────────────
+// All app data lives in localStorage, so a backup is the only way to survive a
+// reinstall, a cleared cache, or moving to a new device. Export bundles every
+// store into one portable JSON file; import restores it.
+
+const BACKUP_FORMAT = "liftlog-backup";
+const BACKUP_VERSION = 1;
+
+export interface BackupFile {
+  format: typeof BACKUP_FORMAT;
+  version: number;
+  exportedAt: number;
+  data: {
+    exercises: Exercise[];
+    templates: WorkoutTemplate[];
+    sessions: WorkoutSession[];
+    personalBests: PersonalBest[];
+  };
+}
+
+export function exportBackup(): BackupFile {
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: Date.now(),
+    data: {
+      exercises: load<Exercise>(KEYS.exercises),
+      templates: load<WorkoutTemplate>(KEYS.templates),
+      sessions: load<WorkoutSession>(KEYS.sessions),
+      personalBests: load<PersonalBest>(KEYS.personalBests),
+    },
+  };
+}
+
+export interface ImportResult {
+  exercises: number;
+  templates: number;
+  sessions: number;
+}
+
+// Validates a parsed backup and replaces all current data with it.
+// Throws a friendly Error if the file isn't a valid LiftLog backup so the UI
+// can surface a clear message instead of silently corrupting state.
+export function importBackup(parsed: unknown): ImportResult {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("This file isn't readable as a backup.");
+  }
+  const b = parsed as Partial<BackupFile>;
+  if (b.format !== BACKUP_FORMAT || !b.data) {
+    throw new Error("This doesn't look like a LiftLog backup file.");
+  }
+  const d = b.data;
+  const arr = <T,>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+  const exercises = arr<Exercise>(d.exercises);
+  const templates = arr<WorkoutTemplate>(d.templates);
+  const sessions = arr<WorkoutSession>(d.sessions);
+  const personalBests = arr<PersonalBest>(d.personalBests);
+
+  save(KEYS.exercises, exercises);
+  save(KEYS.templates, templates);
+  save(KEYS.sessions, sessions);
+  save(KEYS.personalBests, personalBests);
+  // A restore should land the user on a clean slate, not a stale half-session.
+  localStorage.removeItem(KEYS.activeSession);
+
+  return {
+    exercises: exercises.length,
+    templates: templates.length,
+    sessions: sessions.length,
+  };
+}
+
 // ─── Exercises ─────────────────────────────────────────────────────────────
 
 export function getExercises(): Exercise[] {
@@ -431,4 +504,96 @@ export function seedIfEmpty(): void {
     },
   ];
   save(KEYS.templates, templates);
+}
+
+// Generates ~130 sessions spread across the past 365 days for realistic 1-year charts.
+export function seedYearOfData(): void {
+  seedIfEmpty(); // ensure exercises + templates exist
+
+  const PLANS = [
+    {
+      name: "Push Day", templateId: "t1",
+      exs: [
+        { id: "ex1",  name: "Bench Press",            base: 60  },
+        { id: "ex2",  name: "Incline Dumbbell Press", base: 22  },
+        { id: "ex7",  name: "Overhead Press",         base: 40  },
+        { id: "ex11", name: "Tricep Pushdown",        base: 18  },
+      ],
+    },
+    {
+      name: "Pull Day", templateId: "t2",
+      exs: [
+        { id: "ex5", name: "Barbell Row",   base: 70 },
+        { id: "ex4", name: "Pull-Up",       base: 0  },
+        { id: "ex6", name: "Lat Pulldown",  base: 48 },
+        { id: "ex9", name: "Barbell Curl",  base: 28 },
+      ],
+    },
+    {
+      name: "Leg Day", templateId: "t3",
+      exs: [
+        { id: "ex13", name: "Squat",             base: 80  },
+        { id: "ex14", name: "Romanian Deadlift", base: 60  },
+        { id: "ex15", name: "Leg Press",         base: 120 },
+        { id: "ex16", name: "Hip Thrust",        base: 80  },
+      ],
+    },
+  ];
+
+  const now = Date.now();
+  const yearAgo = now - 365 * 86_400_000;
+  const existing = load<WorkoutSession>(KEYS.sessions);
+  const seeded: WorkoutSession[] = [...existing];
+  const existingIds = new Set(existing.map((s) => s.id));
+
+  let planIdx = 0;
+  for (let day = 0; day < 365; day += 2 + (planIdx % 3 === 0 ? 1 : 0)) {
+    const id = `seed_y_${day}`;
+    if (existingIds.has(id)) { planIdx++; continue; }
+
+    const ts = yearAgo + day * 86_400_000;
+    const progress = day / 365;
+    const plan = PLANS[planIdx % 3];
+    planIdx++;
+
+    const exercises = plan.exs.map((ex, ei) => {
+      const w = ex.base === 0 ? 0 : Math.round((ex.base * (1 + progress * 0.28)) / 2.5) * 2.5;
+      const numSets = 3 + (ei === 0 ? 1 : 0);
+      const sets = Array.from({ length: numSets }, (_, si) => ({
+        id: `s_${day}_${ei}_${si}`,
+        weight: w,
+        reps: 6 + Math.floor(((day + ei + si) * 7) % 6),
+        completed: true as const,
+        type: "normal" as const,
+        partialReps: 0,
+      }));
+      return { id: `se_${day}_${ei}`, exerciseId: ex.id, exerciseName: ex.name, sets };
+    });
+
+    const dur = 2700 + ((day * 13) % 1200);
+    seeded.push({ id, templateId: plan.templateId, templateName: plan.name, startedAt: ts, finishedAt: ts + dur * 1000, durationSeconds: dur, exercises });
+  }
+
+  save(KEYS.sessions, seeded);
+
+  // Rebuild PBs from scratch so Trophy modal reflects the seeded data.
+  save(KEYS.personalBests, []);
+  const allSessions = load<WorkoutSession>(KEYS.sessions);
+  for (const s of allSessions) {
+    const pbs = load<PersonalBest>(KEYS.personalBests);
+    for (const ex of s.exercises) {
+      const done = ex.sets.filter((set) => set.completed);
+      if (!done.length) continue;
+      const vol = done.reduce((sum, set) => sum + set.weight * (set.reps + (set.partialReps ?? 0) * 0.5), 0);
+      const maxW = Math.max(...done.map((set) => set.weight));
+      const maxR = Math.max(...done.map((set) => set.reps));
+      const idx = pbs.findIndex((pb) => pb.exerciseId === ex.exerciseId);
+      const cur = pbs[idx];
+      if (!cur || vol > cur.volume || maxW > cur.weight) {
+        const nb: PersonalBest = { exerciseId: ex.exerciseId, exerciseName: ex.exerciseName, weight: maxW, reps: maxR, volume: vol, achievedAt: s.startedAt };
+        if (idx !== -1) pbs[idx] = nb; else pbs.push(nb);
+        save(KEYS.personalBests, pbs);
+      }
+    }
+  }
 }

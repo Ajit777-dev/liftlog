@@ -147,3 +147,21 @@ export function topWeight(sets: WorkoutSet[]): number {
   const done = sets.filter((s) => s.completed);
   return done.length ? Math.max(...done.map((s) => s.weight)) : 0;
 }
+
+// ─── Unit conversion ─────────────────────────────────────────────────────────
+
+/** Convert a kg value to the display unit. Always returns a clean number. */
+export function toDisplay(kg: number, imperial: boolean): number {
+  if (!imperial) return kg;
+  return Math.round(kg * 2.2046 * 10) / 10;
+}
+
+/** Convert a display-unit value back to kg for storage. */
+export function fromDisplay(val: number, imperial: boolean): number {
+  if (!imperial) return val;
+  return Math.round((val / 2.2046) * 4) / 4; // nearest 0.25 kg
+}
+
+export function unitLabel(imperial: boolean): string {
+  return imperial ? "lbs" : "kg";
+}

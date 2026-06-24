@@ -357,6 +357,20 @@ html.cute {
     to { opacity: 1; transform: scale(1); }
   }
 
+  @keyframes draw-line {
+    to { stroke-dashoffset: 0; }
+  }
+
+  /* Respect users who ask for less motion — skip the line draw-in and any
+     non-essential animation so the UI is instantly settled for them. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
   @keyframes pulse-once {
     0% { transform: scale(1); }
     50% { transform: scale(1.08); }
