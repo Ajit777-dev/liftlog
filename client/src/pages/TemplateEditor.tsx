@@ -146,7 +146,7 @@ export default function TemplateEditor() {
 
       {/* Add Exercise Dialog */}
       <Dialog open={showAddExercise} onOpenChange={(o) => { setShowAddExercise(o); if (!o) setSearch(""); }}>
-        <DialogContent className="max-w-sm mx-4">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Add Exercise</DialogTitle>
           </DialogHeader>

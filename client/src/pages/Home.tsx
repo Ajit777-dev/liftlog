@@ -237,7 +237,7 @@ export default function Home() {
         open={showCreate || !!editTemplate}
         onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditTemplate(null); resetForm(); } }}
       >
-        <DialogContent className="max-w-sm mx-4">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{editTemplate ? "Edit Workout" : "New Workout"}</DialogTitle>
           </DialogHeader>
@@ -321,7 +321,7 @@ export default function Home() {
 
       {/* Settings */}
       <Dialog open={showSettings} onOpenChange={setShowSettings}>
-        <DialogContent className="max-w-sm mx-4">
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Settings</DialogTitle>
           </DialogHeader>

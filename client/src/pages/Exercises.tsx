@@ -251,7 +251,7 @@ export default function Exercises() {
         onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditExercise(null); setForm({ name: "", muscleGroup: "" }); } }}
       >
         <DialogContent
-          className="max-w-sm mx-4"
+          className="max-w-sm"
           onPointerDownOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
@@ -355,7 +355,7 @@ function ExerciseDetailDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm mx-4">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <div className="flex items-start justify-between gap-2">
             <div>

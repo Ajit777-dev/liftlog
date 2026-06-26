@@ -778,7 +778,7 @@ function ExerciseCard({
           {/* Note modal */}
           {noteOpen && (
             <Dialog open onOpenChange={(o) => !o && setNoteOpen(false)}>
-              <DialogContent className="max-w-sm mx-4">
+              <DialogContent className="max-w-sm">
                 <DialogHeader><DialogTitle>Exercise Note</DialogTitle></DialogHeader>
                 <textarea
                   autoFocus
@@ -1078,7 +1078,7 @@ function AddCardioDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm mx-4">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Add Cardio Exercise</DialogTitle>
         </DialogHeader>
@@ -1395,7 +1395,7 @@ function AddExerciseDialog({
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm mx-4">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Add Exercise</DialogTitle>
         </DialogHeader>
