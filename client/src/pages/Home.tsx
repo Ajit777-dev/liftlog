@@ -274,7 +274,9 @@ export default function Home() {
           ) : (
             <div className="flex flex-col gap-3">
               {templates.map((template) => {
-                const lastSession = getLastSessionForTemplate(template.id);
+                const lastSession = activeSession?.templateId === template.id
+                  ? activeSession
+                  : getLastSessionForTemplate(template.id);
                 return (
                   <TemplateCard
                     key={template.id}
@@ -621,21 +623,28 @@ function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicat
         </div>
 
         {/* Exercise pills */}
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {template.exercises.slice(0, 4).map((ex) => (
-            <Badge key={ex.id} variant="secondary" className="text-[10px] font-medium px-2">
-              {ex.exerciseName}
-            </Badge>
-          ))}
-          {template.exercises.length > 4 && (
-            <Badge variant="secondary" className="text-[10px]">
-              +{template.exercises.length - 4} more
-            </Badge>
-          )}
-          {template.exercises.length === 0 && (
-            <span className="text-xs text-muted-foreground italic">No exercises added</span>
-          )}
-        </div>
+        {(() => {
+          const exList = template.exercises.length > 0
+            ? template.exercises.map((e) => ({ id: e.id, exerciseName: e.exerciseName }))
+            : (lastSession?.exercises ?? []).map((e) => ({ id: e.id, exerciseName: e.exerciseName }));
+          return (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {exList.slice(0, 4).map((ex) => (
+                <Badge key={ex.id} variant="secondary" className="text-[10px] font-medium px-2">
+                  {ex.exerciseName}
+                </Badge>
+              ))}
+              {exList.length > 4 && (
+                <Badge variant="secondary" className="text-[10px]">
+                  +{exList.length - 4} more
+                </Badge>
+              )}
+              {exList.length === 0 && (
+                <span className="text-xs text-muted-foreground italic">No exercises added</span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Stats row */}
         <div className="flex items-center justify-between">
@@ -643,7 +652,10 @@ function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicat
             <div className="flex items-center gap-1.5">
               <Dumbbell className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">
-                {template.exercises.length} {template.exercises.length === 1 ? "exercise" : "exercises"}
+                {(() => {
+                  const count = lastSession ? lastSession.exercises.length : template.exercises.length;
+                  return `${count} ${count === 1 ? "exercise" : "exercises"}`;
+                })()}
               </span>
             </div>
             {lastSession && (
