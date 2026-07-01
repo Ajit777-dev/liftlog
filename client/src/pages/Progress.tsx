@@ -579,6 +579,7 @@ export default function Progress() {
   const [volumeInfo, setVolumeInfo] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("1m");
   const [drillYear, setDrillYear] = useState<number | null>(null);
   const [drillMonth, setDrillMonth] = useState<string | null>(null); // "YYYY-MM"
@@ -722,7 +723,7 @@ export default function Progress() {
             <div className="px-1 pt-1">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={setSelectedId} />
+                  <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }} />
                   <p className="text-[11px] text-muted-foreground uppercase tracking-wider mt-0.5">
                     {chartPoints.length} session{chartPoints.length !== 1 ? "s" : ""}
                     {last && <> · last {formatDate(last.date).toLowerCase()}</>}
@@ -832,8 +833,26 @@ export default function Progress() {
               </div>
             </div>
 
+            {/* Graph toggle button */}
+            <div className="px-1 mt-3">
+              <button
+                onClick={() => {
+                  if (showGraph) { setDrillYear(null); setDrillMonth(null); }
+                  setShowGraph((v) => !v);
+                }}
+                className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  showGraph
+                    ? "bg-primary/10 text-primary border border-primary/30"
+                    : "bg-muted/40 text-muted-foreground border border-border hover:text-foreground hover:bg-muted/60"
+                }`}
+              >
+                <BarChart2 className="w-3.5 h-3.5" />
+                {showGraph ? "Hide Graph" : "Show Graph"}
+              </button>
+            </div>
+
             {/* Scrubber: year pills → month pills — aligned to metric tab edges, scrollable */}
-            {!drillYear && !drillMonth && timeRange === "all" && dataSpansYears && availableYears.length > 1 && (
+            {showGraph && !drillYear && !drillMonth && timeRange === "all" && dataSpansYears && availableYears.length > 1 && (
               <div className="mx-1 mt-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
                   {availableYears.map((y) => (
@@ -845,7 +864,7 @@ export default function Progress() {
                 </div>
               </div>
             )}
-            {!drillMonth && timeRange !== "1m" && (drillYear || !dataSpansYears || timeRange !== "all") && availableMonths.length > 1 && (
+            {showGraph && !drillMonth && timeRange !== "1m" && (drillYear || !dataSpansYears || timeRange !== "all") && availableMonths.length > 1 && (
               <div className="mx-1 mt-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
                   {availableMonths.map((m) => (
@@ -859,7 +878,7 @@ export default function Progress() {
             )}
 
             {/* Breadcrumb back bar */}
-            {(drillYear || drillMonth) && (
+            {showGraph && (drillYear || drillMonth) && (
               <div className="px-1 mt-4 mb-1 flex items-center gap-2">
                 <button
                   onClick={() => { drillMonth ? setDrillMonth(null) : setDrillYear(null); }}
@@ -879,28 +898,30 @@ export default function Progress() {
             {/* The chart:
                 - month drill → normal (area + full hollow nodes, interactive)
                 - everything else → overview (gradient thin line, no nodes) */}
-            <div className="px-0 pt-2 pb-4">
-              {drillMonth ? (
-                chartPoints.length >= 1 ? (
-                  <LineChart points={chartPoints} metric={metric} mode="normal" />
+            {showGraph && (
+              <div className="px-0 pt-2 pb-4">
+                {drillMonth ? (
+                  chartPoints.length >= 1 ? (
+                    <LineChart points={chartPoints} metric={metric} mode="normal" />
+                  ) : (
+                    <p className="text-center text-sm text-muted-foreground py-10">No sessions this month.</p>
+                  )
+                ) : drillYear ? (
+                  chartPoints.length >= 2 ? (
+                    <LineChart points={chartPoints} metric={metric} mode="overview" />
+                  ) : (
+                    <p className="text-center text-sm text-muted-foreground py-10">No sessions this year.</p>
+                  )
+                ) : chartPoints.length >= 2 ? (
+                  <LineChart points={chartPoints} metric={metric}
+                    mode={timeRange === "1m" ? "normal" : "overview"} />
                 ) : (
-                  <p className="text-center text-sm text-muted-foreground py-10">No sessions this month.</p>
-                )
-              ) : drillYear ? (
-                chartPoints.length >= 2 ? (
-                  <LineChart points={chartPoints} metric={metric} mode="overview" />
-                ) : (
-                  <p className="text-center text-sm text-muted-foreground py-10">No sessions this year.</p>
-                )
-              ) : chartPoints.length >= 2 ? (
-                <LineChart points={chartPoints} metric={metric}
-                  mode={timeRange === "1m" ? "normal" : "overview"} />
-              ) : (
-                <p className="text-center text-sm text-muted-foreground py-10">
-                  One session logged — train this again to see your trend.
-                </p>
-              )}
-            </div>
+                  <p className="text-center text-sm text-muted-foreground py-10">
+                    One session logged — train this again to see your trend.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-3xl border border-card-border bg-card px-4 py-10">

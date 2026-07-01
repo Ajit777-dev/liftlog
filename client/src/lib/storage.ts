@@ -135,6 +135,28 @@ export function updateExercise(
   if (idx === -1) return null;
   exercises[idx] = { ...exercises[idx], ...updates };
   save(KEYS.exercises, exercises);
+
+  if (updates.name) {
+    const name = updates.name;
+
+    const sessions = load<WorkoutSession>(KEYS.sessions).map((s) => ({
+      ...s,
+      exercises: s.exercises.map((e) => e.exerciseId === id ? { ...e, exerciseName: name } : e),
+    }));
+    save(KEYS.sessions, sessions);
+
+    const templates = load<WorkoutTemplate>(KEYS.templates).map((t) => ({
+      ...t,
+      exercises: t.exercises.map((e) => e.exerciseId === id ? { ...e, exerciseName: name } : e),
+    }));
+    save(KEYS.templates, templates);
+
+    const pbs = load<PersonalBest>(KEYS.personalBests).map((pb) =>
+      pb.exerciseId === id ? { ...pb, exerciseName: name } : pb
+    );
+    save(KEYS.personalBests, pbs);
+  }
+
   return exercises[idx];
 }
 

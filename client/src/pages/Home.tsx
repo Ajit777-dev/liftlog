@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Plus, ChevronRight, Clock, Dumbbell, Copy, Trash2, Edit2, MoreHorizontal, Play, Settings, Download, Upload } from "lucide-react";
+import { Plus, ChevronRight, Clock, Dumbbell, Copy, Trash2, Edit2, MoreHorizontal, Play, Settings, Download, Upload, FileSpreadsheet, FileText } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -50,19 +53,78 @@ export default function Home() {
   const { toast } = useToast();
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const handleExport = () => {
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  const handleExportExcel = () => {
     const backup = exportBackup();
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const stamp = new Date().toISOString().slice(0, 10);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `liftlog-backup-${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    toast({ title: "Backup saved", description: `${backup.data.sessions.length} sessions exported.` });
+    const sessions = backup.data.sessions;
+
+    const rows: Record<string, string | number>[] = [];
+    for (const s of sessions) {
+      const date = new Date(s.startedAt).toLocaleDateString("en-GB");
+      for (const ex of s.exercises) {
+        ex.sets.filter((set) => set.completed).forEach((set, i) => {
+          rows.push({
+            Date: date,
+            Workout: s.templateName,
+            Exercise: ex.exerciseName,
+            "Muscle Group": ex.muscleGroup ?? "",
+            "Set #": i + 1,
+            "Weight (kg)": set.weight,
+            Reps: set.reps,
+            "Partial Reps": set.partialReps ?? 0,
+            Type: set.type,
+          });
+        });
+      }
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Workouts");
+    XLSX.writeFile(wb, `greatlift-${stamp}.xlsx`);
+    toast({ title: "Excel exported", description: `${sessions.length} sessions exported.` });
+  };
+
+  const handleExportPDF = () => {
+    const backup = exportBackup();
+    const sessions = backup.data.sessions;
+    const doc = new jsPDF();
+
+    doc.setFontSize(18);
+    doc.text("GreatLift — Workout History", 14, 18);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`Exported ${stamp}`, 14, 26);
+
+    const rows: (string | number)[][] = [];
+    for (const s of sessions) {
+      const date = new Date(s.startedAt).toLocaleDateString("en-GB");
+      for (const ex of s.exercises) {
+        ex.sets.filter((set) => set.completed).forEach((set, i) => {
+          rows.push([
+            date,
+            s.templateName,
+            ex.exerciseName,
+            i + 1,
+            set.weight > 0 ? `${set.weight} kg` : "BW",
+            set.reps,
+            set.type,
+          ]);
+        });
+      }
+    }
+
+    autoTable(doc, {
+      startY: 32,
+      head: [["Date", "Workout", "Exercise", "Set", "Weight", "Reps", "Type"]],
+      body: rows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    doc.save(`greatlift-${stamp}.pdf`);
+    toast({ title: "PDF exported", description: `${sessions.length} sessions exported.` });
   };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -136,7 +198,7 @@ export default function Home() {
           <div>
             <div className="flex items-center gap-2">
               <LiftLogLogo size={24} />
-              <h1 className="text-2xl font-bold tracking-tight">LiftLog</h1>
+              <h1 className="text-2xl font-bold tracking-tight">GreatLift</h1>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
@@ -388,24 +450,34 @@ export default function Home() {
             <div className="border-t border-border/40 pt-4">
               <Label className="text-sm font-medium">Your data</Label>
               <p className="text-xs text-muted-foreground mt-0.5 mb-3">
-                Save a backup file, or restore one. Everything stays on your device.
+                Export your workout history or restore from a backup.
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handleExport}
-                  data-testid="button-export-backup"
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
-                >
-                  <Download className="w-4 h-4" />
-                  Export
-                </button>
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={handleExportExcel}
+                    data-testid="button-export-excel"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                    Excel
+                  </button>
+                  <button
+                    onClick={handleExportPDF}
+                    data-testid="button-export-pdf"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
+                  >
+                    <FileText className="w-4 h-4 text-red-500" />
+                    PDF
+                  </button>
+                </div>
                 <button
                   onClick={() => importInputRef.current?.click()}
                   data-testid="button-import-backup"
                   className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
                 >
                   <Upload className="w-4 h-4" />
-                  Import
+                  Import Backup
                 </button>
               </div>
               <input

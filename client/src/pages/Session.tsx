@@ -226,7 +226,7 @@ export default function Session() {
         sets: ex.sets
           .filter((s) => s.reps > 0 || s.weight > 0)
           .map((s) => ({ ...s, completed: true })),
-      })).filter((ex) => ex.sets.length > 0),
+      })),
     };
     saveSession(finished);
     clearActiveSession();
