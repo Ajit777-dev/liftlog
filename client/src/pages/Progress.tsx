@@ -3,10 +3,10 @@ import { createPortal } from "react-dom";
 import {
   TrendingUp, TrendingDown, Trophy, Scale,
   Search, X, ChevronDown, BarChart2,
-  CalendarDays, ChevronLeft, ChevronRight, Info, Pencil,
+  CalendarDays, ChevronLeft, ChevronRight, Info, Pencil, Trash2,
 } from "lucide-react";
 import {
-  getSessions, getPersonalBests, getExercises, seedYearOfData,
+  getSessions, getPersonalBests, getExercises, seedYearOfData, deleteSession,
 } from "@/lib/storage";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
 import { formatDate, calcIntensity, topWeight, toDisplay, unitLabel } from "@/lib/hooks";
@@ -713,7 +713,8 @@ export default function Progress() {
   return (
     <div className="flex flex-col min-h-full pb-24">
       <Header onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed} />
-      <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions} />
+      <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions}
+        onDeleteSession={(id) => { deleteSession(id); setSessions(getSessions()); setPbs(getPersonalBests()); }} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-5">
         {/* ── HERO: the graph is the main event ── */}
@@ -1112,13 +1113,15 @@ function dayKey(year: number, month: number, day: number) {
   return `${year}-${month}-${day}`;
 }
 
-function CalendarModal({ open, onClose, sessions }: {
+function CalendarModal({ open, onClose, sessions, onDeleteSession }: {
   open: boolean;
   onClose: () => void;
   sessions: WorkoutSession[];
+  onDeleteSession: (id: string) => void;
 }) {
   const [month, setMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
   const [selected, setSelected] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const gymDays = useMemo(() => {
     const s = new Set<string>();
@@ -1226,11 +1229,26 @@ function CalendarModal({ open, onClose, sessions }: {
               <div key={s.id} className="px-4 py-3 border-b border-border/30 last:border-0">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-sm">{s.templateName}</span>
-                  {s.durationSeconds && (
-                    <span className="text-[11px] text-muted-foreground">
-                      {Math.floor(s.durationSeconds / 60)}m {s.durationSeconds % 60}s
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {s.durationSeconds && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {Math.floor(s.durationSeconds / 60)}m {s.durationSeconds % 60}s
+                      </span>
+                    )}
+                    {confirmId === s.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => { onDeleteSession(s.id); setConfirmId(null); if (selectedSessions.length === 1) setSelected(null); }}
+                          className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-destructive text-destructive-foreground"
+                        >Delete</button>
+                        <button onClick={() => setConfirmId(null)} className="text-[10px] text-muted-foreground px-1">Cancel</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setConfirmId(s.id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1">
                   {s.exercises.map((ex) => {
