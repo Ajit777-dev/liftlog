@@ -155,6 +155,16 @@ export function updateExercise(
       pb.exerciseId === id ? { ...pb, exerciseName: name } : pb
     );
     save(KEYS.personalBests, pbs);
+
+    const activeSession = getActiveSession();
+    if (activeSession) {
+      saveActiveSession({
+        ...activeSession,
+        exercises: activeSession.exercises.map((e) =>
+          e.exerciseId === id ? { ...e, exerciseName: name } : e
+        ),
+      });
+    }
   }
 
   return exercises[idx];
@@ -162,6 +172,13 @@ export function updateExercise(
 
 export function deleteExercise(id: string): void {
   const exercises = load<Exercise>(KEYS.exercises).filter((e) => e.id !== id);
+  save(KEYS.exercises, exercises);
+}
+
+/** Re-insert a previously deleted exercise verbatim (for undo). */
+export function restoreExercise(exercise: Exercise): void {
+  const exercises = load<Exercise>(KEYS.exercises).filter((e) => e.id !== exercise.id);
+  exercises.push(exercise);
   save(KEYS.exercises, exercises);
 }
 
@@ -214,6 +231,15 @@ export function deleteTemplate(id: string): void {
   const templates = load<WorkoutTemplate>(KEYS.templates).filter(
     (t) => t.id !== id
   );
+  save(KEYS.templates, templates);
+}
+
+/** Re-insert a previously deleted template verbatim (for undo). */
+export function restoreTemplate(template: WorkoutTemplate): void {
+  const templates = load<WorkoutTemplate>(KEYS.templates).filter(
+    (t) => t.id !== template.id
+  );
+  templates.push(template);
   save(KEYS.templates, templates);
 }
 

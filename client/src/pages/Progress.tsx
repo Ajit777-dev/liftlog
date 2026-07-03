@@ -1,28 +1,35 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
-  TrendingUp, TrendingDown, Trophy, Scale,
+  TrendingUp, TrendingDown, Trophy,
   Search, X, ChevronDown, BarChart2,
   CalendarDays, ChevronLeft, ChevronRight, Info, Pencil,
 } from "lucide-react";
 import {
-  getSessions, getPersonalBests, getExercises, seedYearOfData,
+  getSessions, getPersonalBests, getPersonalBest, getExercises, seedYearOfData,
 } from "@/lib/storage";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
-import { formatDate, calcIntensity, topWeight, toDisplay, unitLabel } from "@/lib/hooks";
+import { formatDate, calcIntensity, intensityLabel, topWeight, toDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 // ─── Metrics ────────────────────────────────────────────────────────────────
 
 type Metric = "intensity" | "weight" | "volume";
 type TimeRange = "1m" | "3m" | "6m" | "1y" | "all";
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: "1m", label: "Last Month" },
+  { value: "3m", label: "3 Months" },
+  { value: "6m", label: "6 Months" },
+  { value: "1y", label: "1 Year" },
+  { value: "all", label: "All Time" },
+];
 
 // Single accent across every metric — minimal, monochrome + one blue.
 const ACCENT = "hsl(214 94% 60%)";
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
-  { key: "intensity", label: "Intensity",  unit: "",   color: ACCENT },
+  { key: "intensity", label: "Intensity",  unit: "%",  color: ACCENT },
   { key: "weight",    label: "Max Wt",     unit: "kg", color: ACCENT },
-  { key: "volume",    label: "Volume",     unit: "kg", color: ACCENT },
 ];
 
 interface SessionPoint {
@@ -49,8 +56,28 @@ function shortDate(ts: number): string {
   return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
+// Smooth cardinal spline through the given points (Catmull-Rom → cubic Bezier).
+function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return "";
+  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+  return d;
+}
+
 // Build one point per session (oldest → newest) for the chosen exercise.
 function buildPoints(sessions: WorkoutSession[], exerciseId: string): SessionPoint[] {
+  const pb = getPersonalBest(exerciseId);
   return sessions
     .filter((s) => s.exercises.some((e) => e.exerciseId === exerciseId))
     .slice()
@@ -61,7 +88,7 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string): SessionPoi
       return {
         date: s.startedAt,
         label: shortDate(s.startedAt),
-        intensity: Math.round(calcIntensity(done)),
+        intensity: Math.round(calcIntensity(done, pb)),
         weight: topWeight(done),
         volume: done.reduce((sum, set) => sum + set.weight * (set.reps + (set.partialReps ?? 0) * 0.5), 0),
         reps: done.reduce((sum, set) => sum + set.reps, 0),
@@ -113,55 +140,60 @@ function LineChart({
   const cx = (i: number) => PAD.left + (i / Math.max(normalPts.length - 1, 1)) * chartW;
   const cy = (v: number) => PAD.top + chartH - ((v - minVal) / span) * chartH;
 
-  const gridTicks = [0, 0.5, 1].map((t) => minVal + span * t);
   const labelStep = normalPts.length <= 5 ? 1 : Math.ceil(normalPts.length / 5);
   // Avoid last-label overlapping the previous regular label
   const lastLabelIdx = normalPts.length - 1;
   const prevRegularLabelIdx = Math.floor((lastLabelIdx - 1) / labelStep) * labelStep;
   const showLastDateLabel = lastLabelIdx - prevRegularLabelIdx > labelStep * 0.5;
 
-  const pathD = normalPts.map((p, i) =>
-    `${i === 0 ? "M" : "L"} ${cx(i)} ${cy(metricValue(p, metric))}`
-  ).join(" ");
-  const areaD = mode === "normal" && normalPts.length > 1
-    ? `${pathD} L ${cx(normalPts.length - 1)} ${PAD.top + chartH} L ${cx(0)} ${PAD.top + chartH} Z`
-    : "";
+  // Day-only label when all points are within a single month (avoids "21 Jun" on x-axis)
+  const allSameMonth = normalPts.length >= 2 &&
+    new Date(normalPts[0].date).getMonth() === new Date(normalPts[normalPts.length - 1].date).getMonth();
+  const xLabelFor = (p: SessionPoint) => allSameMonth ? String(new Date(p.date).getDate()) : p.label;
 
-  // Approximate path length (sum of segment distances) to seed the draw-in animation.
-  const pathLen = normalPts.reduce((sum, p, i) => {
-    if (i === 0) return 0;
-    const dx = cx(i) - cx(i - 1);
-    const dy = cy(metricValue(p, metric)) - cy(metricValue(normalPts[i - 1], metric));
-    return sum + Math.hypot(dx, dy);
-  }, 0);
+  const nodePts = normalPts.map((p, i) => ({ x: cx(i), y: cy(metricValue(p, metric)) }));
+  const pathD = smoothPath(nodePts);
+
+  // Highlighted point — selected node, or the latest session by default (Groww-style).
+  const highlighted = mode !== "overview" ? (sel ?? normalPts[normalPts.length - 1]) : null;
+  const hIdx = highlighted ? normalPts.findIndex((p) => p.date === highlighted.date) : -1;
 
   return (
     <>
-      {sel && mode !== "overview" && (
-        <div className="mx-3 mb-3 rounded-xl bg-muted/40 border border-border/50 px-3 py-2.5">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-semibold">{sel.label}</span>
-            <button onClick={() => setSel(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {sel.sets.map((set, si) => (
-              <span key={si} className="text-[11px] font-mono bg-background border border-border/50 px-2 py-0.5 rounded-full">
-                {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
-                {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
-                {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
-              </span>
-            ))}
-          </div>
+      {mode !== "overview" && (
+        <div
+          className={`mx-3 mb-3 rounded-xl border border-border/60 bg-card px-3 py-2.5 min-h-[92px] transition-opacity ${
+            sel ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          {sel && (
+            <>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold">{sel.label}</span>
+                <button onClick={() => setSel(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {sel.sets.map((set, si) => (
+                  <span key={si} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
+                    {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
+                    {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
+                    {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                  </span>
+                ))}
+              </div>
+              {sel.notes && (
+                <p className="mt-1.5 text-[11px] text-muted-foreground italic flex items-center gap-1">
+                  <Pencil className="w-3 h-3 flex-shrink-0" />{sel.notes}
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
-          <linearGradient id="area-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.18" />
-            <stop offset="100%" stopColor={cfg.color} stopOpacity="0" />
-          </linearGradient>
           {/* Horizontal fade gradient for overview line — old sessions fade in, recent pop */}
           <linearGradient id="overview-line-grad" x1={PAD.left} y1="0" x2={PAD.left + chartW} y2="0" gradientUnits="userSpaceOnUse">
             <stop offset="0%" stopColor={cfg.color} stopOpacity="0.2" />
@@ -170,26 +202,11 @@ function LineChart({
           </linearGradient>
         </defs>
 
-        {gridTicks.map((t, i) => (
-          <g key={i}>
-            <line x1={PAD.left} y1={cy(t)} x2={PAD.left + chartW} y2={cy(t)}
-              stroke="hsl(var(--border))" strokeWidth="1" opacity="0.18" />
-            <text x={PAD.left - 6} y={cy(t) + 3.5} fontSize="9.5" textAnchor="end"
-              style={{ fontVariantNumeric: "tabular-nums" }}
-              fill="hsl(var(--muted-foreground))">{fmt(t)}</text>
-          </g>
-        ))}
-
-        {areaD && <path d={areaD} fill="url(#area-grad)" />}
         <path key={`${metric}-${mode}-${normalPts.length}`} d={pathD} fill="none"
           stroke={mode === "overview" ? "url(#overview-line-grad)" : cfg.color}
           strokeWidth={mode === "overview" ? "1" : "1.8"}
           strokeLinecap="round" strokeLinejoin="round"
-          style={{
-            strokeDasharray: pathLen,
-            strokeDashoffset: pathLen,
-            animation: "draw-line 0.6s ease-out forwards",
-          }} />
+          style={{ animation: "draw-line 0.4s ease-out forwards" }} />
 
         {normalPts.map((p, i) => {
           const v = metricValue(p, metric);
@@ -200,12 +217,7 @@ function LineChart({
           // Show date label at regular steps + first/last, but skip last if too close to previous
           const regularLabel = isFirst || i % labelStep === 0;
           const showDateLabel = regularLabel || (isLast && showLastDateLabel);
-          // Day-only label when all points are within a single month (avoids "21 Jun" on x-axis)
-          const allSameMonth = normalPts.length >= 2 &&
-            new Date(normalPts[0].date).getMonth() === new Date(normalPts[normalPts.length - 1].date).getMonth();
-          const xLabel = allSameMonth
-            ? String(new Date(p.date).getDate())
-            : p.label;
+          const xLabel = xLabelFor(p);
 
           if (mode === "overview") {
             return showDateLabel ? (
@@ -218,18 +230,11 @@ function LineChart({
 
           if (mode === "detail") {
             const r = isSel ? 4.5 : isLast ? 2.5 : 1.5;
-            const labelY = y - 9;
             return (
               <g key={i} style={{ cursor: "pointer" }} onClick={() => setSel(isSel ? null : p)}>
                 <circle cx={x} cy={y} r={8} fill="transparent" />
                 <circle cx={x} cy={y} r={r} fill={cfg.color}
                   opacity={isSel ? 1 : isLast ? 0.9 : 0.5} />
-                {(isSel || isLast) && (
-                  <text x={x} y={labelY} fontSize="10" fontWeight="700" textAnchor="middle"
-                    fill={isLast ? cfg.color : "hsl(var(--foreground))"}>
-                    {fmt(v)}
-                  </text>
-                )}
                 {showDateLabel && (
                   <text x={x} y={H - 4} fontSize="9.5" textAnchor="middle"
                     fill="hsl(var(--muted-foreground))">
@@ -242,29 +247,12 @@ function LineChart({
 
           // "normal" mode — hollow circle on every node, solid for last/selected
           const r = isSel ? 5 : isLast ? 4 : 2.5;
-          // Always above the node — top padding guarantees it never clips or
-          // collides with the line below.
-          const labelY = y - 10;
-          // Only one floating value at a time: selected wins, else the latest session.
-          const showValueLabel = isSel || (isLast && !sel);
-          // Keep the value text inside the plot so it never clips or collides at the edges.
-          const nearRight = x > PAD.left + chartW - 18;
-          const nearLeft = x < PAD.left + 18;
-          const valAnchor = nearRight ? "end" : nearLeft ? "start" : "middle";
-          const valX = nearRight ? x + 6 : nearLeft ? x - 6 : x;
           return (
             <g key={i} style={{ cursor: "pointer" }} onClick={() => setSel(isSel ? null : p)}>
               <circle cx={x} cy={y} r={9} fill="transparent" />
               <circle cx={x} cy={y} r={r}
                 fill={isSel || isLast ? cfg.color : "hsl(var(--background))"}
                 stroke={cfg.color} strokeWidth={isSel ? 2.5 : 1.5} />
-              {showValueLabel && (
-                <text x={valX} y={labelY} fontSize={isSel ? "11" : "10"} fontWeight="700"
-                  textAnchor={valAnchor} style={{ fontVariantNumeric: "tabular-nums" }}
-                  fill={isSel ? cfg.color : "hsl(var(--foreground))"}>
-                  {fmt(v)}
-                </text>
-              )}
               {showDateLabel && (
                 <text x={x} y={H - 4} fontSize="9.5" textAnchor="middle"
                   fill="hsl(var(--muted-foreground))">
@@ -274,6 +262,27 @@ function LineChart({
             </g>
           );
         })}
+
+        {/* Groww-style floating tooltip: dashed guide line + value/date label pinned near the top */}
+        {highlighted && hIdx !== -1 && (() => {
+          const v = metricValue(highlighted, metric);
+          const x = cx(hIdx), y = cy(v);
+          const nearRight = x > PAD.left + chartW - 60;
+          const nearLeft = x < PAD.left + 60;
+          const anchor = nearRight ? "end" : nearLeft ? "start" : "middle";
+          const labelX = nearRight ? PAD.left + chartW : nearLeft ? PAD.left : x;
+          return (
+            <g pointerEvents="none">
+              <line x1={x} y1={PAD.top - 2} x2={x} y2={PAD.top + chartH}
+                stroke={cfg.color} strokeWidth="1" strokeDasharray="3 3" opacity="0.4" />
+              <circle cx={x} cy={y} r={5} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
+              <text x={labelX} y={16} fontSize="11" fontWeight="700" textAnchor={anchor}
+                style={{ fontVariantNumeric: "tabular-nums" }} fill="hsl(var(--foreground))">
+                {fmt(v)}{cfg.unit ? ` ${cfg.unit}` : ""}
+              </text>
+            </g>
+          );
+        })()}
       </svg>
     </>
   );
@@ -476,7 +485,11 @@ function ExerciseSelector({
     <div className="relative inline-flex max-w-full">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 max-w-full text-left active:scale-[0.98] transition-transform"
+        className={`flex items-center gap-1.5 max-w-full text-left rounded-xl border px-3 py-1.5 active:scale-[0.98] transition-all ${
+          open
+            ? "bg-primary/15 border-primary/40"
+            : "bg-muted/50 border-border hover:bg-muted/70"
+        }`}
         data-testid="button-exercise-select"
       >
         <span className="text-lg font-bold truncate">
@@ -577,7 +590,6 @@ export default function Progress() {
   const [calOpen, setCalOpen] = useState(false);
   const [intensityInfo, setIntensityInfo] = useState(false);
   const [volumeInfo, setVolumeInfo] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("1m");
@@ -696,7 +708,10 @@ export default function Progress() {
   if (sessions.length === 0) {
     return (
       <div className="flex flex-col min-h-full pb-24">
-        <Header onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed} />
+        <Header
+          onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed}
+          loggedExercises={[]} selectedId={null} onSelectExercise={() => {}}
+        />
         <div className="flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
             <BarChart2 className="w-8 h-8 text-muted-foreground" />
@@ -712,10 +727,14 @@ export default function Progress() {
 
   return (
     <div className="flex flex-col min-h-full pb-24">
-      <Header onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed} />
+      <Header
+        onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed}
+        loggedExercises={loggedExercises} selectedId={selectedId}
+        onSelectExercise={(id) => { setSelectedId(id); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }}
+      />
       <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions} />
 
-      <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-5">
+      <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-4">
         {/* ── HERO: the graph is the main event ── */}
         {selectedExercise && displayPoints.length > 0 ? (
           <div>
@@ -723,8 +742,7 @@ export default function Progress() {
             <div className="px-1 pt-1">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={(id) => { setSelectedId(id); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }} />
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider mt-0.5">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
                     {chartPoints.length} session{chartPoints.length !== 1 ? "s" : ""}
                     {last && <> · last {formatDate(last.date).toLowerCase()}</>}
                   </p>
@@ -732,33 +750,24 @@ export default function Progress() {
                 {/* Compare + time range dropdown — together top-right */}
                 <div className="flex items-center gap-2 flex-shrink-0">
                   {!drillYear && !drillMonth && (
-                    <div className="relative">
-                      <select
-                        value={timeRange}
-                        onChange={(e) => { setTimeRange(e.target.value as TimeRange); setDrillYear(null); setDrillMonth(null); }}
-                        className="appearance-none h-8 pl-2.5 pr-6 rounded-xl border border-border bg-background/50 text-[11px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                      >
-                        <option value="1m">Last Month</option>
-                        <option value="3m">3 Months</option>
-                        <option value="6m">6 Months</option>
-                        <option value="1y">1 Year</option>
-                        <option value="all">All Time</option>
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
-                    </div>
-                  )}
-                  {prev && (
-                    <button
-                      onClick={() => setShowComparison((v) => !v)}
-                      className={`w-8 h-8 rounded-2xl flex items-center justify-center transition-all ${
-                        showComparison
-                          ? "bg-primary text-primary-foreground shadow-md"
-                          : "bg-muted/60 text-muted-foreground border border-border hover:text-foreground hover:bg-muted"
-                      }`}
-                      title="Compare with previous session"
-                    >
-                      <Scale className="w-4 h-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="flex items-center gap-1 h-8 pl-2.5 pr-2 rounded-xl border border-border bg-background/50 text-[11px] font-semibold text-foreground hover:bg-muted/50 transition-colors">
+                          {TIME_RANGE_OPTIONS.find((o) => o.value === timeRange)?.label}
+                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {TIME_RANGE_OPTIONS.map((opt) => (
+                          <DropdownMenuItem
+                            key={opt.value}
+                            onClick={() => { setTimeRange(opt.value); setDrillYear(null); setDrillMonth(null); }}
+                          >
+                            {opt.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               </div>
@@ -771,6 +780,11 @@ export default function Progress() {
                   <span className="text-sm text-muted-foreground">
                     {metric === "weight" || metric === "volume" ? wUnit : metricCfg.unit || metricCfg.label.toLowerCase()}
                   </span>
+                  {metric === "intensity" && (
+                    <span className="text-sm font-semibold text-muted-foreground">
+                      {intensityLabel(metricValue(last!, metric))}
+                    </span>
+                  )}
                   {(metric === "intensity" || metric === "volume") && (
                     <button
                       onClick={() => metric === "intensity" ? setIntensityInfo((v) => !v) : setVolumeInfo((v) => !v)}
@@ -798,11 +812,18 @@ export default function Progress() {
               </div>
               {metric === "intensity" && intensityInfo && (
                 <div className="mt-2 mb-1 rounded-xl bg-muted/40 border border-border/50 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
-                  <p className="font-semibold text-foreground mb-1">How intensity is calculated</p>
-                  <p>For each completed set:</p>
-                  <p className="font-mono mt-1 text-[11px] text-foreground/80">(weight × reps + partials × weight × 0.5) × multiplier</p>
-                  <p className="mt-1.5">Multipliers — Normal: ×1.0 · Failure: ×1.1 · Assisted: ×0.9</p>
-                  <p className="mt-1">All sets are summed to give the session intensity score.</p>
+                  <p className="font-semibold text-foreground mb-1">What is intensity?</p>
+                  <p>How close you trained to your all-time best on this exercise, as a percentage. Higher % = closer to your max effort.</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-foreground/80 font-medium">Show the technical details</summary>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      <p>Each weighted set is scored as %1RM — its estimated one-rep max (Epley: weight × (1 + reps/30)) compared to your personal best for the exercise.</p>
+                      <p>Bodyweight sets have no 1RM, so they use the classic reps-to-failure %1RM curve instead.</p>
+                      <p>Partial reps count as half a rep in both formulas.</p>
+                      <p>That %1RM is then discounted by set type, since it affects how trustworthy the reps-to-failure assumption is: Failure ×1.0 · Normal ×0.92 · Assisted ×0.8.</p>
+                      <p>The session's intensity is the average %1RM across all completed sets.</p>
+                    </div>
+                  </details>
                 </div>
               )}
               {metric === "volume" && volumeInfo && (
@@ -925,11 +946,6 @@ export default function Progress() {
           </div>
         ) : (
           <div className="rounded-3xl border border-card-border bg-card px-4 py-10">
-            {loggedExercises.length > 0 && (
-              <div className="mb-6">
-                <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={setSelectedId} />
-              </div>
-            )}
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                 <BarChart2 className="w-7 h-7 text-muted-foreground" />
@@ -941,47 +957,6 @@ export default function Progress() {
               </p>
             </div>
           </div>
-        )}
-
-        {/* Last session comparison — centered overlay, opened by the delta badge */}
-        {showComparison && last && prev && selectedExercise && createPortal(
-          <div style={{ position: "fixed", inset: 0, zIndex: 9998 }}>
-            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.7)" }} onClick={() => setShowComparison(false)} />
-            <div className="w-[calc(100%-2rem)] max-w-sm rounded-2xl bg-background border border-border shadow-xl overflow-hidden"
-              style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", zIndex: 1 }}>
-              <div className="px-5 py-4 flex items-center justify-between border-b border-border/50">
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Last session vs previous</span>
-                <span className="text-[11px] text-muted-foreground">{formatDate(last.date)}</span>
-              </div>
-              <div className="grid grid-cols-2 divide-x divide-border/40">
-                {/* Intensity */}
-                <div className="px-4 py-4 flex flex-col gap-0.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Intensity</span>
-                  <span className="text-2xl font-bold leading-none" style={{ color: ACCENT }}>{fmt(last.intensity)}</span>
-                  {last.intensity !== prev.intensity && (
-                    <span className={`flex items-center gap-0.5 text-[11px] font-semibold mt-1 ${last.intensity > prev.intensity ? "text-green-500" : "text-destructive"}`}>
-                      {last.intensity > prev.intensity ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {last.intensity > prev.intensity ? "+" : ""}{fmt(last.intensity - prev.intensity)}
-                    </span>
-                  )}
-                </div>
-                {/* Max Weight */}
-                <div className="px-4 py-4 flex flex-col gap-0.5">
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Max Wt</span>
-                  <span className="text-2xl font-bold leading-none">
-                    {fmt(last.weight)}<span className="text-xs font-normal text-muted-foreground ml-0.5">{wUnit}</span>
-                  </span>
-                  {last.weight !== prev.weight && (
-                    <span className={`flex items-center gap-0.5 text-[11px] font-semibold mt-1 ${last.weight > prev.weight ? "text-green-500" : "text-destructive"}`}>
-                      {last.weight > prev.weight ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                      {last.weight > prev.weight ? "+" : ""}{fmt(last.weight - prev.weight)}{wUnit}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body
         )}
 
         {/* Recent sessions — the actual progress made */}
@@ -997,7 +972,6 @@ export default function Progress() {
                 <div key={p.date} className="rounded-xl border border-border/60 bg-card px-3 py-2.5">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold">{formatDate(p.date)}</span>
-                    <span className="text-[11px] text-muted-foreground font-mono">{fmt(p.volume)} {wUnit} vol</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {p.sets.map((set, i) => (
@@ -1062,15 +1036,19 @@ export default function Progress() {
   );
 }
 
-function Header({ onCalClick, onPbClick, pbCount, onSeedClick }: { onCalClick: () => void; onPbClick: () => void; pbCount: number; onSeedClick?: () => void }) {
+function Header({
+  onCalClick, onPbClick, pbCount, onSeedClick, loggedExercises, selectedId, onSelectExercise,
+}: {
+  onCalClick: () => void; onPbClick: () => void; pbCount: number; onSeedClick?: () => void;
+  loggedExercises: Exercise[]; selectedId: string | null; onSelectExercise: (id: string) => void;
+}) {
   return (
     <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
       <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Progress</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">Every session, your strength journey</p>
+        <div className="min-w-0">
+          <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={onSelectExercise} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {onSeedClick && (
             <button
               onClick={onSeedClick}

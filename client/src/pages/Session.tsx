@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useParams } from "wouter";
 import { nanoid } from "nanoid";
 import {
-  X, Plus, Check, ChevronDown, ChevronUp, Timer, Zap,
-  TrendingUp, TrendingDown, Minus, AlertTriangle, Activity,
+  X, Plus, Minus, Check, ChevronDown, ChevronUp, Timer, Zap,
+  TrendingUp, TrendingDown, AlertTriangle, Activity,
   ArrowLeft, Trophy, Clock, MoreVertical, Trash2, Edit2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,19 +13,16 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle
-} from "@/components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getTemplate, getActiveSession, saveActiveSession, clearActiveSession,
   saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate,
-  getLastSessionForTemplate
+  getLastSessionForTemplate, updateTemplate, getPersonalBest
 } from "@/lib/storage";
-import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate } from "@/lib/types";
-import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, topWeight, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
+import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate, TemplateExercise } from "@/lib/types";
+import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, intensityLabel, topWeight, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 
@@ -49,7 +46,6 @@ export default function Session() {
   const [expandedExercises, setExpandedExercises] = useState<Set<string>>(new Set());
   const [expandedCardio, setExpandedCardio] = useState<Set<string>>(new Set());
   const [showFinishDialog, setShowFinishDialog] = useState(false);
-  const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showAddExercise, setShowAddExercise] = useState(false);
   const [showAddCardio, setShowAddCardio] = useState(false);
   const [restTimerTarget, setRestTimerTarget] = useState(90);
@@ -72,7 +68,7 @@ export default function Session() {
       // list (including any added mid-session) but with NO sets — the user
       // taps "Add Set" to log fresh. First-ever start uses the template scaffold.
       const lastSession = getLastSessionForTemplate(templateId);
-      const exercises: SessionExercise[] = lastSession
+      const exercises: SessionExercise[] = lastSession && lastSession.exercises.length > 0
         ? lastSession.exercises.map((ex) => ({
             id: nanoid(),
             exerciseId: ex.exerciseId,
@@ -230,10 +226,34 @@ export default function Session() {
     };
     saveSession(finished);
     clearActiveSession();
+
+    if (template) {
+      const templateExercises: TemplateExercise[] = finished.exercises.map((ex, i) => {
+        const existing = template.exercises.find((te) => te.exerciseId === ex.exerciseId);
+        return {
+          id: existing?.id ?? nanoid(),
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          muscleGroup: ex.muscleGroup,
+          defaultSets: existing?.defaultSets ?? (ex.sets.length || 3),
+          order: i,
+        };
+      });
+      updateTemplate(template.id, { exercises: templateExercises });
+    }
+
     navigate("/progress");
   };
 
   const cancelWorkout = () => {
+    if (session) saveActiveSession(session);
+    navigate("/");
+  };
+
+  // Nothing worth saving — drop the active session instead of writing an empty
+  // one to history (which would pollute charts and PBs).
+  const discardWorkout = () => {
+    clearActiveSession();
     navigate("/");
   };
 
@@ -371,7 +391,7 @@ export default function Session() {
   const completedSets = getCompletedSets();
 
   return (
-    <div className="flex flex-col min-h-full" style={{ paddingBottom: "80px" }}>
+    <div className="flex flex-col min-h-full" style={{ paddingBottom: "88px" }}>
       {/* Session Header */}
       <div className="sticky top-0 z-40 bg-background/98 backdrop-blur-md border-b border-border">
         <div className="max-w-lg mx-auto px-4 py-3">
@@ -380,7 +400,7 @@ export default function Session() {
               <Button
                 size="icon"
                 variant="ghost"
-                onClick={() => setShowCancelDialog(true)}
+                onClick={cancelWorkout}
                 data-testid="button-cancel-session"
               >
                 <X className="w-5 h-5" />
@@ -404,26 +424,18 @@ export default function Session() {
                 </div>
               </div>
             </div>
-            <Button
-              size="sm"
-              onClick={() => setShowFinishDialog(true)}
-              data-testid="button-finish-session"
-              className="font-semibold px-5"
-            >
-              Finish
-            </Button>
           </div>
 
           {/* Stats bar */}
           <div className="flex items-center gap-4 py-2.5 px-3.5 rounded-xl bg-card/70 border border-border/60">
             <div className="flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-medium">{completedSets} sets</span>
+              <span className="text-xs font-medium tabular-nums">{completedSets} sets</span>
             </div>
             <div className="w-px h-3 bg-border" />
             <div className="flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-accent" />
-              <span className="text-xs font-medium">
+              <span className="text-xs font-medium tabular-nums">
                 {(() => { const v = toDisplay(totalVolume, imperial); return v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(0); })()} {unitLabel(imperial)} vol
               </span>
             </div>
@@ -534,6 +546,23 @@ export default function Session() {
         </button>
       </div>
 
+      {/* Sticky Finish bar — thumb-reachable end-of-workout action */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-background/90 backdrop-blur-xl"
+        style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      >
+        <div className="max-w-lg mx-auto px-4 py-3">
+          <Button
+            onClick={() => setShowFinishDialog(true)}
+            data-testid="button-finish-session"
+            className="w-full font-semibold py-4"
+          >
+            <Check className="w-4 h-4 mr-2" />
+            Finish workout
+          </Button>
+        </div>
+      </div>
+
       {/* Add Exercise Dialog */}
       {showAddExercise && (
         <AddExerciseDialog
@@ -573,43 +602,30 @@ export default function Session() {
       )}
 
       {/* Finish Dialog */}
-      <AlertDialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Save Workout?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Do you want to save this workout?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Don't Save</AlertDialogCancel>
-            <AlertDialogAction onClick={finishWorkout} data-testid="button-confirm-finish">
-              Yes, Save
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel Dialog */}
-      <AlertDialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Leave Workout?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your progress is auto-saved. You can resume this workout anytime from the home screen.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep Going</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={cancelWorkout}
-              data-testid="button-confirm-cancel"
-            >
-              Save & Go Home
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Dialog open={showFinishDialog} onOpenChange={setShowFinishDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{completedSets === 0 ? "No sets logged" : "Finish Workout?"}</DialogTitle>
+            <DialogDescription>
+              {completedSets === 0
+                ? "You haven't completed any sets. There's nothing to save — discard this workout?"
+                : "Do you want to finish this workout?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowFinishDialog(false)}>Continue</Button>
+            {completedSets === 0 ? (
+              <Button variant="destructive" onClick={discardWorkout} data-testid="button-discard-session">
+                Discard
+              </Button>
+            ) : (
+              <Button onClick={finishWorkout} data-testid="button-confirm-finish">
+                Finish session
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -692,9 +708,22 @@ function ExerciseCard({
           </div>
 
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-3">
               <h3 className="font-semibold text-sm leading-tight truncate">{exercise.exerciseName}</h3>
-              {exercise.notes && <Edit2 className="w-3 h-3 text-muted-foreground flex-shrink-0" />}
+              {exercise.notes && (
+                <span
+                  role="button"
+                  title="Edit note"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNoteDraft(exercise.notes ?? "");
+                    setNoteOpen(true);
+                  }}
+                  className="flex-shrink-0 p-0.5 -m-0.5 text-muted-foreground hover:text-foreground"
+                >
+                  <Edit2 className="w-3 h-3" />
+                </span>
+              )}
             </div>
             {exercise.muscleGroup && (
               <p className="text-[11px] text-muted-foreground">{exercise.muscleGroup}</p>
@@ -703,7 +732,7 @@ function ExerciseCard({
         </button>
 
         <div className="flex items-center gap-1 flex-shrink-0">
-          {allDone && <Check className="w-4 h-4 text-primary" />}
+          {allDone && <Check className="w-4 h-4 text-primary animate-spring-pop" />}
 
           {/* Previous session history button */}
           {lastSets.length > 0 && (
@@ -916,7 +945,7 @@ function CardioCard({
         </div>
 
         <div className="flex items-center gap-2">
-          {allDone && <Check className="w-4 h-4 text-accent" />}
+          {allDone && <Check className="w-4 h-4 text-accent animate-spring-pop" />}
           {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
         </div>
       </button>
@@ -1133,23 +1162,24 @@ function ExerciseProgressSummary({
 
   const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
   const totalPartial = completedSets.reduce((sum, s) => sum + (s.partialReps ?? 0), 0);
-  const intensity = Math.round(calcIntensity(completedSets));
+  const pb = getPersonalBest(exercise.exerciseId);
+  const intensity = Math.round(calcIntensity(completedSets, pb));
   const bestWeight = topWeight(completedSets);
 
   const lastDone = lastData?.sets.filter((s) => s.completed) ?? [];
-  const lastIntensity = lastDone.length ? Math.round(calcIntensity(lastDone)) : null;
+  const lastIntensity = lastDone.length ? Math.round(calcIntensity(lastDone, pb)) : null;
   const lastWeight = lastDone.length ? topWeight(lastDone) : null;
   const intDelta = lastIntensity !== null ? intensity - lastIntensity : null;
   const wtDelta = lastWeight !== null ? bestWeight - lastWeight : null;
 
   const dispBestWeight = toDisplay(bestWeight, imperial);
-  const dispWtDelta = wtDelta !== null ? Math.round(toDisplay(Math.abs(wtDelta), imperial) * 10) / 10 * Math.sign(wtDelta) : null;
+  const dispLastWeight = lastWeight !== null ? Math.round(toDisplay(lastWeight, imperial) * 10) / 10 : null;
 
   return (
     <div className="rounded-lg px-3 py-2.5 mb-1 bg-muted/40 border border-border/50">
       <div className="grid grid-cols-2 gap-2">
-        <SummaryStat label="Intensity" value={`${intensity}`} color="text-primary" delta={intDelta} />
-        <SummaryStat label="Top Weight" value={`${dispBestWeight}${unitLabel(imperial)}`} color="text-foreground" delta={dispWtDelta} deltaUnit={unitLabel(imperial)} />
+        <SummaryStat label="Intensity" value={`${intensity}%`} hint={intensityLabel(intensity)} color="text-primary" delta={intDelta} last={lastIntensity} unit="%" />
+        <SummaryStat label="Top Weight" value={`${dispBestWeight}${unitLabel(imperial)}`} color="text-foreground" delta={wtDelta} last={dispLastWeight} unit={unitLabel(imperial)} />
       </div>
       <p className="text-[11px] text-muted-foreground mt-2">
         {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}
@@ -1158,20 +1188,24 @@ function ExerciseProgressSummary({
   );
 }
 
-function SummaryStat({ label, value, color, delta, deltaUnit }: {
-  label: string; value: string; color: string; delta: number | null; deltaUnit?: string;
+function SummaryStat({ label, value, hint, color, delta, last, unit }: {
+  label: string; value: string; hint?: string; color: string; delta: number | null; last: number | null; unit?: string;
 }) {
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
       <div className="flex items-baseline gap-1.5">
         <span className={`text-base font-bold font-mono ${color}`}>{value}</span>
-        {delta !== null && delta !== 0 && (
-          <span className={`text-[10px] font-semibold ${delta > 0 ? "text-green-500" : "text-destructive"}`}>
-            {delta > 0 ? "+" : ""}{delta % 1 === 0 ? delta : delta.toFixed(1)}{deltaUnit ?? ""}
-          </span>
-        )}
+        {hint && <span className="text-[10px] font-semibold text-muted-foreground">{hint}</span>}
       </div>
+      {last !== null && (
+        <div className={`text-[10px] font-semibold ${
+          delta && delta > 0 ? "text-green-500" : delta && delta < 0 ? "text-destructive" : "text-muted-foreground"
+        }`}>
+          last {last % 1 === 0 ? last : last.toFixed(1)}{unit ?? ""}
+          {delta && delta > 0 ? " ↑" : delta && delta < 0 ? " ↓" : " ="}
+        </div>
+      )}
     </div>
   );
 }
@@ -1187,10 +1221,10 @@ interface SetRowProps {
   onToggleComplete: () => void;
 }
 
-const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: string }> = {
-  normal: { label: "Normal", short: "N", color: "bg-muted text-muted-foreground" },
-  assisted: { label: "Assisted", short: "A", color: "bg-blue-500/20 text-blue-400 border border-blue-500/30" },
-  failure: { label: "Failure", short: "F", color: "bg-destructive/20 text-destructive border border-destructive/30" },
+const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: string; hint: string }> = {
+  normal: { label: "Normal", short: "N", color: "bg-muted text-muted-foreground", hint: "A regular set, stopped with reps left in the tank" },
+  assisted: { label: "Assisted", short: "A", color: "bg-blue-500/20 text-blue-400 border border-blue-500/30", hint: "Used a machine or a spotter to help complete the reps" },
+  failure: { label: "Failure", short: "F", color: "bg-destructive/20 text-destructive border border-destructive/30", hint: "Pushed until you physically couldn't do another rep" },
 };
 
 const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
@@ -1198,10 +1232,6 @@ const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
 function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
   const { imperial } = useTheme();
   const typeConfig = SET_TYPE_CONFIG[set.type];
-  const cycleType = () => {
-    const idx = SET_TYPES.indexOf(set.type);
-    onUpdate({ type: SET_TYPES[(idx + 1) % SET_TYPES.length] });
-  };
 
   return (
     <div
@@ -1221,7 +1251,7 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
           <button
             onClick={onToggleComplete}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90 ${
-              set.completed ? "bg-primary" : "border-2 border-primary/40"
+              set.completed ? "bg-primary animate-spring-pop" : "border-2 border-primary/40"
             }`}
             title={set.completed ? "Mark not done" : "Mark done"}
             data-testid={set.completed ? `button-uncomplete-set-${set.id}` : `button-complete-set-${set.id}`}
@@ -1231,7 +1261,7 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
           {!set.completed && (
             <button
               onClick={onRemove}
-              className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-red-400 hover:bg-destructive/10 transition-colors"
+              className="w-8 h-8 rounded-full border border-destructive/40 flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
               title="Remove set"
               data-testid={`button-remove-set-${set.id}`}
             >
@@ -1254,17 +1284,19 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
             testId={`input-weight-${set.id}`}
           />
         </FieldBox>
-        <FieldBox label="Reps">
-          <NumberInput
-            value={set.reps}
-            step={1}
-            min={0}
-            onChange={(v) => onUpdate({ reps: v })}
-            disabled={set.completed}
-            testId={`input-reps-${set.id}`}
-          />
+        <div>
+          <FieldBox label="Reps">
+            <NumberInput
+              value={set.reps}
+              step={1}
+              min={0}
+              onChange={(v) => onUpdate({ reps: v })}
+              disabled={set.completed}
+              testId={`input-reps-${set.id}`}
+            />
+          </FieldBox>
           {lastSet && lastSet.reps > 0 && (
-            <div className={`text-[10px] font-semibold text-center mt-0.5 ${
+            <div className={`text-[10px] font-semibold text-center mt-1 ${
               set.reps > lastSet.reps ? "text-green-500" :
               set.reps < lastSet.reps ? "text-destructive" :
               "text-muted-foreground"
@@ -1272,17 +1304,32 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
               last {lastSet.reps}{set.reps > lastSet.reps ? " ↑" : set.reps < lastSet.reps ? " ↓" : " ="}
             </div>
           )}
-        </FieldBox>
+        </div>
         <FieldBox label="Type" bare>
-          <button
-            onClick={cycleType}
-            disabled={set.completed}
-            className={`w-full py-2.5 rounded-md text-xs font-semibold transition-colors ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
-            data-testid={`button-set-type-${set.id}`}
-            title={`Tap to change: ${set.type}`}
-          >
-            {typeConfig.label}
-          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                disabled={set.completed}
+                className={`w-full py-2.5 rounded-md text-xs font-semibold transition-colors ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
+                data-testid={`button-set-type-${set.id}`}
+              >
+                {typeConfig.label}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center">
+              {SET_TYPES.map((t) => (
+                <DropdownMenuItem
+                  key={t}
+                  onClick={() => onUpdate({ type: t })}
+                  className="flex flex-col items-start gap-0.5 py-2"
+                  data-testid={`menu-set-type-${t}-${set.id}`}
+                >
+                  <span className="text-sm font-semibold">{SET_TYPE_CONFIG[t].label}</span>
+                  <span className="text-[11px] text-muted-foreground whitespace-normal">{SET_TYPE_CONFIG[t].hint}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </FieldBox>
         <FieldBox label="Partial">
           <NumberInput
@@ -1315,8 +1362,33 @@ function NumberInput({
 }) {
   const [editing, setEditing] = useState(false);
   const [raw, setRaw] = useState("");
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
+  const holdRef = useRef<{ timeout?: ReturnType<typeof setTimeout>; interval?: ReturnType<typeof setInterval> }>({});
 
   const display = value % 1 === 0 ? `${value}` : `${value}`;
+
+  const step1 = (dir: 1 | -1) => {
+    const next = Math.max(min, parseFloat((valueRef.current + dir * step).toFixed(2)));
+    valueRef.current = next;
+    onChange(next);
+  };
+
+  const startHold = (dir: 1 | -1) => {
+    if (disabled) return;
+    step1(dir);
+    holdRef.current.timeout = setTimeout(() => {
+      holdRef.current.interval = setInterval(() => step1(dir), 80);
+    }, 400);
+  };
+
+  const stopHold = () => {
+    clearTimeout(holdRef.current.timeout);
+    clearInterval(holdRef.current.interval);
+    holdRef.current = {};
+  };
+
+  useEffect(() => stopHold, []);
 
   if (editing) {
     return (
@@ -1344,18 +1416,22 @@ function NumberInput({
   }
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center justify-between gap-1 px-1">
       <button
-        onClick={() => !disabled && onChange(Math.max(min, parseFloat((value - step).toFixed(2))))}
+        onMouseDown={() => startHold(-1)}
+        onMouseUp={stopHold}
+        onMouseLeave={stopHold}
+        onTouchStart={(e) => { e.preventDefault(); startHold(-1); }}
+        onTouchEnd={stopHold}
         disabled={disabled || value <= min}
-        className="w-6 h-6 rounded-full flex items-center justify-center text-sm text-muted-foreground disabled:opacity-30"
+        className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground active:scale-90 transition-transform disabled:opacity-30 flex-shrink-0"
         data-testid={`${testId}-minus`}
       >
-        <Minus className="w-3 h-3" />
+        <Minus className="w-3.5 h-3.5" />
       </button>
       <button
         onClick={() => { if (!disabled) { setRaw(`${value}`); setEditing(true); } }}
-        className="flex-1 text-center text-sm font-bold py-1"
+        className="flex-1 text-center text-sm font-bold py-1 tabular-nums"
         data-testid={testId}
         disabled={disabled}
       >
@@ -1363,12 +1439,16 @@ function NumberInput({
         {suffix && <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{suffix}</span>}
       </button>
       <button
-        onClick={() => !disabled && onChange(parseFloat((value + step).toFixed(2)))}
+        onMouseDown={() => startHold(1)}
+        onMouseUp={stopHold}
+        onMouseLeave={stopHold}
+        onTouchStart={(e) => { e.preventDefault(); startHold(1); }}
+        onTouchEnd={stopHold}
         disabled={disabled}
-        className="w-6 h-6 rounded-full flex items-center justify-center text-sm text-muted-foreground disabled:opacity-30"
+        className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground active:scale-90 transition-transform disabled:opacity-30 flex-shrink-0"
         data-testid={`${testId}-plus`}
       >
-        <Plus className="w-3 h-3" />
+        <Plus className="w-3.5 h-3.5" />
       </button>
     </div>
   );

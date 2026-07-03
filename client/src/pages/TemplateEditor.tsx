@@ -68,7 +68,7 @@ export default function TemplateEditor() {
             <div className="flex items-center gap-2">
               <div
                 className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: template.color ?? "#3b82f6" }}
+                style={{ backgroundColor: template.color || "hsl(var(--primary))" }}
               />
               <h1 className="font-bold text-base truncate">{template.name}</h1>
             </div>

@@ -1,24 +1,21 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Trash2, Dumbbell, ChevronRight, ChevronDown, Trophy } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Dumbbell, ChevronRight, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
-  AlertDialogHeader, AlertDialogTitle
-} from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  getExercises, createExercise, updateExercise, deleteExercise,
+  getExercises, createExercise, updateExercise, deleteExercise, restoreExercise,
   getPersonalBests, getSessionsByExercise
 } from "@/lib/storage";
 import type { Exercise, PersonalBest } from "@/lib/types";
 import { MUSCLE_GROUPS } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
+import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 // Minimal monochrome: one quiet neutral badge for every muscle group.
 const NEUTRAL_BADGE = "bg-muted/70 text-muted-foreground border border-border/50";
@@ -43,9 +40,9 @@ export default function Exercises() {
   const [filterGroup, setFilterGroup] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editExercise, setEditExercise] = useState<Exercise | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [viewExercise, setViewExercise] = useState<Exercise | null>(null);
   const [form, setForm] = useState({ name: "", muscleGroup: "" });
+  const { toast } = useToast();
 
   useEffect(() => {
     setExercises(getExercises());
@@ -58,8 +55,17 @@ export default function Exercises() {
   };
 
   const handleCreate = () => {
-    if (!form.name.trim()) return;
-    createExercise(form.name, form.muscleGroup || undefined);
+    const name = form.name.trim();
+    if (!name) return;
+    const dupe = exercises.find((e) => e.name.trim().toLowerCase() === name.toLowerCase());
+    if (dupe) {
+      toast({
+        title: "Exercise already exists",
+        description: `“${dupe.name}” is already in your list.`,
+      });
+      return;
+    }
+    createExercise(name, form.muscleGroup || undefined);
     setForm({ name: "", muscleGroup: "" });
     setShowCreate(false);
     refresh();
@@ -67,16 +73,34 @@ export default function Exercises() {
 
   const handleEdit = () => {
     if (!editExercise || !form.name.trim()) return;
-    updateExercise(editExercise.id, { name: form.name, muscleGroup: form.muscleGroup || undefined });
+    const name = form.name.trim();
+    const dupe = exercises.find(
+      (e) => e.id !== editExercise.id && e.name.trim().toLowerCase() === name.toLowerCase()
+    );
+    if (dupe) {
+      toast({
+        title: "Exercise already exists",
+        description: `“${dupe.name}” is already in your list.`,
+      });
+      return;
+    }
+    updateExercise(editExercise.id, { name, muscleGroup: form.muscleGroup || undefined });
     setEditExercise(null);
     refresh();
   };
 
-  const handleDelete = () => {
-    if (!deleteId) return;
-    deleteExercise(deleteId);
-    setDeleteId(null);
+  const handleDelete = (ex: Exercise) => {
+    deleteExercise(ex.id);
     refresh();
+    toast({
+      title: "Exercise deleted",
+      description: `“${ex.name}” was removed. Historical data was preserved.`,
+      action: (
+        <ToastAction altText="Undo delete" onClick={() => { restoreExercise(ex); refresh(); }}>
+          Undo
+        </ToastAction>
+      ),
+    });
   };
 
   const openEdit = (ex: Exercise) => {
@@ -109,33 +133,28 @@ export default function Exercises() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Exercises</h1>
-              <p className="text-xs text-muted-foreground mt-0.5">{exercises.length} exercises</p>
+          <div className="flex items-center gap-2 mb-2">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="search"
+                placeholder="Search exercises..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-primary"
+                data-testid="input-search-exercises"
+              />
             </div>
             <Button
               size="sm"
               onClick={() => setShowCreate(true)}
               data-testid="button-create-exercise"
-              className="gap-1.5"
+              className="gap-1.5 flex-shrink-0"
             >
               <Plus className="w-4 h-4" />
               New
             </Button>
-          </div>
-
-          {/* Search */}
-          <div className="relative mb-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              type="search"
-              placeholder="Search exercises..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-primary"
-              data-testid="input-search-exercises"
-            />
           </div>
 
           {/* Muscle group filter pills */}
@@ -220,7 +239,7 @@ export default function Exercises() {
                         </div>
                         {pb && (
                           <p className="text-[11px] text-muted-foreground">
-                            PB: {pb.weight}kg × {pb.reps}
+                            Personal best: {pb.weight}kg × {pb.reps}
                           </p>
                         )}
                       </div>
@@ -271,20 +290,19 @@ export default function Exercises() {
             </div>
             <div className="flex flex-col gap-1.5">
               <Label>Muscle Group</Label>
-              <div className="relative">
-                <select
-                  value={form.muscleGroup}
-                  onChange={(e) => setForm((f) => ({ ...f, muscleGroup: e.target.value }))}
-                  data-testid="select-muscle-group"
-                  className="h-10 w-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="">Select muscle group</option>
+              <Select
+                value={form.muscleGroup}
+                onValueChange={(v) => setForm((f) => ({ ...f, muscleGroup: v }))}
+              >
+                <SelectTrigger data-testid="select-muscle-group">
+                  <SelectValue placeholder="Select muscle group" />
+                </SelectTrigger>
+                <SelectContent>
                   {MUSCLE_GROUPS.map((mg) => (
-                    <option key={mg} value={mg}>{mg}</option>
+                    <SelectItem key={mg} value={mg}>{mg}</SelectItem>
                   ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              </div>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -311,32 +329,10 @@ export default function Exercises() {
           exercise={viewExercise}
           pb={pbMap.get(viewExercise.id)}
           onEdit={() => { openEdit(viewExercise); setViewExercise(null); }}
-          onDelete={() => { setDeleteId(viewExercise.id); setViewExercise(null); }}
+          onDelete={() => { handleDelete(viewExercise); setViewExercise(null); }}
           onClose={() => setViewExercise(null)}
         />
       )}
-
-      {/* Delete Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete exercise?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete this exercise. Historical data will be preserved.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground"
-              data-testid="button-confirm-delete-exercise"
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
@@ -376,7 +372,7 @@ function ExerciseDetailDialog({
         {pb && (
           <div
             className="rounded-lg px-4 py-3 flex items-center gap-3"
-            style={{ background: "hsl(28 90% 58% / 0.12)", border: "1px solid hsl(28 90% 58% / 0.25)" }}
+            style={{ background: "hsl(var(--accent) / 0.12)", border: "1px solid hsl(var(--accent) / 0.25)" }}
           >
             <Trophy className="w-5 h-5 text-accent flex-shrink-0" />
             <div>

@@ -131,15 +131,56 @@ export function formatWeight(w: number): string {
 
 import type { WorkoutSet } from "./types";
 
-/** Effort score: weight × reps (+ half credit for partials), nudged by set type. */
-export function calcIntensity(sets: WorkoutSet[]): number {
-  return sets
-    .filter((s) => s.completed)
-    .reduce((sum, s) => {
-      const base = s.weight * s.reps + (s.partialReps ?? 0) * s.weight * 0.5;
-      const mult = s.type === "failure" ? 1.1 : s.type === "assisted" ? 0.9 : 1;
-      return sum + base * mult;
-    }, 0);
+/** Epley estimated 1RM from a weight × reps performance. */
+export function estimate1RM(weight: number, reps: number): number {
+  return weight * (1 + reps / 30);
+}
+
+// Discounts the raw %1RM estimate by how trustworthy the reps-to-failure
+// assumption is for that set type — a "normal" set likely had reps left in
+// reserve, and an "assisted" set's logged weight overstates the true load.
+const INTENSITY_TYPE_MULTIPLIER: Record<WorkoutSet["type"], number> = {
+  failure: 1.0,
+  normal: 0.92,
+  assisted: 0.8,
+};
+
+/**
+ * Intensity: average %1RM across completed sets.
+ * Weighted sets are scored against the estimated 1RM from `pb` (Epley) — the
+ * classic "intensity based on sets and reps" approach (NSCA). Bodyweight sets
+ * (weight 0) have no 1RM to compare against, so they fall back to the
+ * reps-to-failure %1RM curve (Brzycki-style) instead. Both are then discounted
+ * by a set-type multiplier (see INTENSITY_TYPE_MULTIPLIER).
+ */
+export function calcIntensity(sets: WorkoutSet[], pb?: { weight: number; reps: number }): number {
+  // A set with no reps and no weight logged represents no actual work — the
+  // reps-to-failure curve misreads "0 reps" as a near-max single (~100%),
+  // which would otherwise score an empty set as high intensity.
+  const done = sets.filter((s) => s.completed && (s.reps > 0 || s.weight > 0));
+  if (done.length === 0) return 0;
+
+  const refE1RM = pb && pb.weight > 0
+    ? estimate1RM(pb.weight, pb.reps)
+    : Math.max(0, ...done.filter((s) => s.weight > 0).map((s) => estimate1RM(s.weight, s.reps + (s.partialReps ?? 0) * 0.5)));
+
+  const pctFor = (s: WorkoutSet) => {
+    const effReps = s.reps + (s.partialReps ?? 0) * 0.5;
+    const raw = s.weight > 0
+      ? (refE1RM > 0 ? Math.min(100, (estimate1RM(s.weight, effReps) / refE1RM) * 100) : 0)
+      : Math.max(0, Math.min(100, 102.78 - 2.78 * effReps));
+    return raw * INTENSITY_TYPE_MULTIPLIER[s.type];
+  };
+
+  return done.reduce((sum, s) => sum + pctFor(s), 0) / done.length;
+}
+
+/** Plain-language band for an intensity %1RM score, so the number isn't jargon. */
+export function intensityLabel(pct: number): string {
+  if (pct >= 90) return "Max";
+  if (pct >= 80) return "Hard";
+  if (pct >= 65) return "Solid";
+  return "Easy";
 }
 
 /** Heaviest weight lifted across the completed sets. */

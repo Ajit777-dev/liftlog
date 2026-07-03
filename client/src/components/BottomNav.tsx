@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Dumbbell, BookOpen, BarChart2 } from "lucide-react";
 
 const NAV_ITEMS = [
-  { href: "/", icon: Dumbbell, label: "Workout" },
+  { href: "/", icon: Dumbbell, label: "Train" },
   { href: "/exercises", icon: BookOpen, label: "Exercises" },
   { href: "/progress", icon: BarChart2, label: "Progress" },
 ];
@@ -27,7 +27,7 @@ export function BottomNav() {
               >
                 <span
                   className={`flex items-center justify-center w-11 h-7 rounded-full transition-all duration-300 ${
-                    active ? "bg-primary/15" : "bg-transparent group-hover:bg-muted/50"
+                    active ? "bg-primary/15 animate-spring-pop" : "bg-transparent group-hover:bg-muted/50"
                   }`}
                 >
                   <Icon className={`w-5 h-5 transition-all ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
