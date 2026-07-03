@@ -269,10 +269,7 @@ export default function Exercises() {
         open={showCreate || !!editExercise}
         onOpenChange={(o) => { if (!o) { setShowCreate(false); setEditExercise(null); setForm({ name: "", muscleGroup: "" }); } }}
       >
-        <DialogContent
-          className="max-w-sm"
-          onPointerDownOutside={(e) => e.preventDefault()}
-        >
+        <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>{editExercise ? "Edit Exercise" : "New Exercise"}</DialogTitle>
           </DialogHeader>

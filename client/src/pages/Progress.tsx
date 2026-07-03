@@ -500,8 +500,8 @@ function ExerciseSelector({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => { setOpen(false); setQuery(""); }} />
-          <div className="absolute top-full left-0 mt-2 z-40 w-64 max-w-[78vw] rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+          <div className="fixed inset-0 z-50" onClick={() => { setOpen(false); setQuery(""); }} />
+          <div className="absolute top-full left-0 mt-2 z-50 w-64 max-w-[78vw] rounded-xl border border-border bg-card shadow-xl overflow-hidden">
             <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
               <Search className="w-3.5 h-3.5 text-muted-foreground" />
               <input
