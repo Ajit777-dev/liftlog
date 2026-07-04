@@ -5,7 +5,6 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -229,8 +228,10 @@ export default function Home() {
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <LiftLogLogo size={24} />
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
+                <LiftLogLogo size={20} className="text-primary-foreground" />
+              </div>
               <h1 className="text-2xl font-bold tracking-tight">GreatLift</h1>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
@@ -341,6 +342,11 @@ export default function Home() {
                   <span>{Math.round(viewSession.durationSeconds / 60)} min</span>
                 )}
               </div>
+              {viewSession.notes && (
+                <p className="text-[11px] text-muted-foreground italic flex items-center gap-1 -mt-1">
+                  <Pencil className="w-3 h-3 flex-shrink-0" />{viewSession.notes}
+                </p>
+              )}
               <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto pr-0.5">
                 {viewSession.exercises.map((ex) => (
                   <div key={ex.id} className="rounded-xl border border-border/60 bg-card px-3 py-2.5">
@@ -355,6 +361,7 @@ export default function Home() {
                         <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                           {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
                           {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                          {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                         </span>
                       ))}
                     </div>
@@ -672,14 +679,18 @@ function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicat
       className="rounded-2xl border border-card-border bg-card overflow-hidden animate-fade-in shadow-sm shadow-black/20"
       data-testid={`card-template-${template.id}`}
     >
-      {/* Color accent bar — only shown when the workout has a custom color */}
-      {template.color && <div className="h-1" style={{ backgroundColor: template.color }} />}
-
       <div className="p-4">
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0 flex items-center gap-2">
-            {emojiSrc && (
+            {emojiSrc ? (
               <img src={emojiSrc} alt="" className="w-9 h-9 object-contain flex-shrink-0" />
+            ) : (
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ backgroundColor: color }}
+              >
+                <Dumbbell className="w-4 h-4 text-white" />
+              </div>
             )}
             <div className="min-w-0">
               <h3 className="font-semibold text-base leading-tight truncate">{template.name}</h3>
@@ -716,61 +727,50 @@ function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicat
           </DropdownMenu>
         </div>
 
-        {/* Exercise pills */}
+        {/* Exercise summary */}
         {(() => {
-          const exList = template.exercises.length > 0
-            ? template.exercises.map((e) => ({ id: e.id, exerciseName: e.exerciseName }))
-            : (lastSession?.exercises ?? []).map((e) => ({ id: e.id, exerciseName: e.exerciseName }));
+          const exNames = template.exercises.length > 0
+            ? template.exercises.map((e) => e.exerciseName)
+            : (lastSession?.exercises ?? []).map((e) => e.exerciseName);
+          const count = exNames.length;
+          const visible = exNames.slice(0, 3);
+          const remaining = count - visible.length;
           return (
-            <div className="flex flex-wrap gap-1.5 mb-4">
-              {exList.slice(0, 4).map((ex) => (
-                <Badge key={ex.id} variant="secondary" className="text-[10px] font-medium px-2">
-                  {ex.exerciseName}
-                </Badge>
-              ))}
-              {exList.length > 4 && (
-                <Badge variant="secondary" className="text-[10px]">
-                  +{exList.length - 4} more
-                </Badge>
+            <p className="text-xs text-muted-foreground mb-4 truncate">
+              {count === 0 ? (
+                <span className="italic">No exercises added</span>
+              ) : (
+                <>
+                  {count} {count === 1 ? "exercise" : "exercises"}
+                  {" · "}
+                  {visible.join(", ")}
+                  {remaining > 0 && ` +${remaining} more`}
+                </>
               )}
-              {exList.length === 0 && (
-                <span className="text-xs text-muted-foreground italic">No exercises added</span>
-              )}
-            </div>
+            </p>
           );
         })()}
 
         {/* Stats row */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <Dumbbell className="w-3.5 h-3.5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground">
-                {(() => {
-                  const count = template.exercises.length > 0 ? template.exercises.length : (lastSession?.exercises.length ?? 0);
-                  return `${count} ${count === 1 ? "exercise" : "exercises"}`;
-                })()}
-              </span>
-            </div>
-            {lastSession && onViewHistory && (
-              <button
-                onClick={onViewHistory}
-                className="flex items-center gap-1"
-                style={{ color }}
-                data-testid={`button-view-history-${template.id}`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                <span className="text-xs font-medium">Last session</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+          {lastSession && onViewHistory ? (
+            <button
+              onClick={onViewHistory}
+              className="flex items-center gap-1"
+              style={{ color }}
+              data-testid={`button-view-history-${template.id}`}
+            >
+              <Clock className="w-3.5 h-3.5" />
+              <span className="text-xs font-medium">Last session</span>
+              <ChevronRight className="w-3 h-3" />
+            </button>
+          ) : <div />}
 
           <Button
             size="sm"
             onClick={onStart}
             data-testid={`button-start-${template.id}`}
-            className="gap-1.5 font-semibold"
+            className="gap-1.5 font-semibold rounded-full px-5"
             style={{ backgroundColor: color, borderColor: color, color: "white" }}
           >
             <Play className="w-3.5 h-3.5 fill-white" />

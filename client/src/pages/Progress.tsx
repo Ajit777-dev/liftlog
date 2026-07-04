@@ -17,12 +17,12 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuIte
 
 type Metric = "intensity" | "weight" | "volume";
 type TimeRange = "1m" | "3m" | "6m" | "1y" | "all";
-const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
-  { value: "1m", label: "Last Month" },
-  { value: "3m", label: "3 Months" },
-  { value: "6m", label: "6 Months" },
-  { value: "1y", label: "1 Year" },
-  { value: "all", label: "All Time" },
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: string }[] = [
+  { value: "1m", label: "Last Month", short: "1M" },
+  { value: "3m", label: "3 Months", short: "3M" },
+  { value: "6m", label: "6 Months", short: "6M" },
+  { value: "1y", label: "1 Year", short: "1Y" },
+  { value: "all", label: "All Time", short: "All" },
 ];
 
 // Single accent across every metric — minimal, monochrome + one blue.
@@ -118,7 +118,8 @@ function LineChart({
   const W = 340, H = 200;
   // Generous top padding so a peak node's value label always has room ABOVE it
   // (never flipped down onto the line, which caused overlap).
-  const PAD = { top: 40, right: 20, bottom: 32, left: 42 };
+  // Minimal left/right padding so the plotted chart spans the same width as the box above it.
+  const PAD = { top: 40, right: 4, bottom: 32, left: 4 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
 
@@ -140,150 +141,140 @@ function LineChart({
   const cx = (i: number) => PAD.left + (i / Math.max(normalPts.length - 1, 1)) * chartW;
   const cy = (v: number) => PAD.top + chartH - ((v - minVal) / span) * chartH;
 
-  const labelStep = normalPts.length <= 5 ? 1 : Math.ceil(normalPts.length / 5);
-  // Avoid last-label overlapping the previous regular label
-  const lastLabelIdx = normalPts.length - 1;
-  const prevRegularLabelIdx = Math.floor((lastLabelIdx - 1) / labelStep) * labelStep;
-  const showLastDateLabel = lastLabelIdx - prevRegularLabelIdx > labelStep * 0.5;
-
-  // Day-only label when all points are within a single month (avoids "21 Jun" on x-axis)
-  const allSameMonth = normalPts.length >= 2 &&
-    new Date(normalPts[0].date).getMonth() === new Date(normalPts[normalPts.length - 1].date).getMonth();
-  const xLabelFor = (p: SessionPoint) => allSameMonth ? String(new Date(p.date).getDate()) : p.label;
-
   const nodePts = normalPts.map((p, i) => ({ x: cx(i), y: cy(metricValue(p, metric)) }));
   const pathD = smoothPath(nodePts);
+  const areaD = nodePts.length > 0
+    ? `${pathD} L ${nodePts[nodePts.length - 1].x} ${PAD.top + chartH} L ${nodePts[0].x} ${PAD.top + chartH} Z`
+    : "";
 
-  // Highlighted point — selected node, or the latest session by default (Groww-style).
-  const highlighted = mode !== "overview" ? (sel ?? normalPts[normalPts.length - 1]) : null;
+  // Highlighted point — only set once the user taps a node.
+  const highlighted = sel;
   const hIdx = highlighted ? normalPts.findIndex((p) => p.date === highlighted.date) : -1;
+  const gradId = `area-grad-${metric}-${mode}`;
+
+  const hx = hIdx !== -1 ? cx(hIdx) : null;
+  const hy = hIdx !== -1 ? cy(metricValue(highlighted!, metric)) : null;
+  const lastPt = normalPts[normalPts.length - 1];
 
   return (
     <>
-      {mode !== "overview" && (
-        <div
-          className={`mx-3 mb-3 rounded-xl border border-border/60 bg-card px-3 py-2.5 min-h-[92px] transition-opacity ${
-            sel ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-        >
-          {sel && (
-            <>
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold">{sel.label}</span>
-                <button onClick={() => setSel(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {sel.sets.map((set, si) => (
-                  <span key={si} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
-                    {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
-                    {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
-                    {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
-                  </span>
-                ))}
-              </div>
-              {sel.notes && (
-                <p className="mt-1.5 text-[11px] text-muted-foreground italic flex items-center gap-1">
-                  <Pencil className="w-3 h-3 flex-shrink-0" />{sel.notes}
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      )}
+      {/* Value + sets box — fixed height (not just min-height) so varying set counts/notes
+          across different points never shift the graph's position below. */}
+      <div
+        className={`mb-3 rounded-xl border border-border/60 bg-card px-3 py-2.5 h-[84px] overflow-hidden transition-opacity ${
+          highlighted ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        {highlighted && (
+          <>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className="text-xs font-semibold">{highlighted.label}</span>
+              <button onClick={() => setSel(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex flex-nowrap gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+              {highlighted.sets.map((set, si) => (
+                <span key={si} className="flex-shrink-0 text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
+                  {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
+                  {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                  {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
+                </span>
+              ))}
+            </div>
+            {highlighted.notes && (
+              <p className="mt-1.5 text-[11px] text-muted-foreground italic flex items-center gap-1 truncate">
+                <Pencil className="w-3 h-3 flex-shrink-0" /><span className="truncate">{highlighted.notes}</span>
+              </p>
+            )}
+          </>
+        )}
+      </div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
         <defs>
-          {/* Horizontal fade gradient for overview line — old sessions fade in, recent pop */}
-          <linearGradient id="overview-line-grad" x1={PAD.left} y1="0" x2={PAD.left + chartW} y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.2" />
-            <stop offset="60%" stopColor={cfg.color} stopOpacity="0.65" />
-            <stop offset="100%" stopColor={cfg.color} stopOpacity="1" />
+          {/* Vertical fade for the area fill under the line */}
+          <linearGradient id={gradId} x1="0" y1={PAD.top} x2="0" y2={PAD.top + chartH} gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={cfg.color} stopOpacity="0.35" />
+            <stop offset="100%" stopColor={cfg.color} stopOpacity="0" />
           </linearGradient>
         </defs>
 
+        {/* Horizontal gridlines */}
+        {[0, 0.5, 1].map((t) => {
+          const y = PAD.top + chartH * t;
+          return (
+            <line key={t} x1={PAD.left} y1={y} x2={PAD.left + chartW} y2={y}
+              stroke="hsl(var(--border))" strokeWidth="1" opacity="0.4" />
+          );
+        })}
+
+        {areaD && <path d={areaD} fill={`url(#${gradId})`} stroke="none" />}
+
         <path key={`${metric}-${mode}-${normalPts.length}`} d={pathD} fill="none"
-          stroke={mode === "overview" ? "url(#overview-line-grad)" : cfg.color}
-          strokeWidth={mode === "overview" ? "1" : "1.8"}
-          strokeLinecap="round" strokeLinejoin="round"
+          stroke={cfg.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
           style={{ animation: "draw-line 0.4s ease-out forwards" }} />
 
+        {/* Click/hover targets over every node so any point can be inspected */}
         {normalPts.map((p, i) => {
           const v = metricValue(p, metric);
           const x = cx(i), y = cy(v);
-          const isLast = i === normalPts.length - 1;
-          const isFirst = i === 0;
-          const isSel = sel?.date === p.date;
-          // Show date label at regular steps + first/last, but skip last if too close to previous
-          const regularLabel = isFirst || i % labelStep === 0;
-          const showDateLabel = regularLabel || (isLast && showLastDateLabel);
-          const xLabel = xLabelFor(p);
-
-          if (mode === "overview") {
-            return showDateLabel ? (
-              <text key={i} x={x} y={H - 4} fontSize="9.5" textAnchor="middle"
-                fill="hsl(var(--muted-foreground))">
-                {xLabel}
-              </text>
-            ) : null;
-          }
-
-          if (mode === "detail") {
-            const r = isSel ? 4.5 : isLast ? 2.5 : 1.5;
-            return (
-              <g key={i} style={{ cursor: "pointer" }} onClick={() => setSel(isSel ? null : p)}>
-                <circle cx={x} cy={y} r={8} fill="transparent" />
-                <circle cx={x} cy={y} r={r} fill={cfg.color}
-                  opacity={isSel ? 1 : isLast ? 0.9 : 0.5} />
-                {showDateLabel && (
-                  <text x={x} y={H - 4} fontSize="9.5" textAnchor="middle"
-                    fill="hsl(var(--muted-foreground))">
-                    {xLabel}
-                  </text>
-                )}
-              </g>
-            );
-          }
-
-          // "normal" mode — hollow circle on every node, solid for last/selected
-          const r = isSel ? 5 : isLast ? 4 : 2.5;
+          const isSel = highlighted?.date === p.date;
+          const isLast = p.date === lastPt.date;
           return (
-            <g key={i} style={{ cursor: "pointer" }} onClick={() => setSel(isSel ? null : p)}>
-              <circle cx={x} cy={y} r={9} fill="transparent" />
-              <circle cx={x} cy={y} r={r}
-                fill={isSel || isLast ? cfg.color : "hsl(var(--background))"}
-                stroke={cfg.color} strokeWidth={isSel ? 2.5 : 1.5} />
-              {showDateLabel && (
-                <text x={x} y={H - 4} fontSize="9.5" textAnchor="middle"
-                  fill="hsl(var(--muted-foreground))">
-                  {xLabel}
-                </text>
+            <g key={i} style={{ cursor: "pointer" }}
+              onClick={() => setSel(isSel ? null : p)}
+              onMouseEnter={() => setSel(p)}
+            >
+              <circle cx={x} cy={y} r={10} fill="transparent" />
+              {!highlighted && isLast && (
+                <circle cx={x} cy={y} r={4} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
+              )}
+              {isSel && (
+                <circle cx={x} cy={y} r={4} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
               )}
             </g>
           );
         })}
 
-        {/* Groww-style floating tooltip: dashed guide line + value/date label pinned near the top */}
-        {highlighted && hIdx !== -1 && (() => {
-          const v = metricValue(highlighted, metric);
-          const x = cx(hIdx), y = cy(v);
-          const nearRight = x > PAD.left + chartW - 60;
-          const nearLeft = x < PAD.left + 60;
-          const anchor = nearRight ? "end" : nearLeft ? "start" : "middle";
-          const labelX = nearRight ? PAD.left + chartW : nearLeft ? PAD.left : x;
+        {/* Start / Now edge labels */}
+        <text x={PAD.left} y={H - 4} fontSize="10.5" fontWeight="600" textAnchor="start"
+          fill="hsl(var(--muted-foreground))">
+          Start
+        </text>
+        <text x={PAD.left + chartW} y={H - 4} fontSize="10.5" fontWeight="600" textAnchor="end"
+          fill="hsl(var(--muted-foreground))">
+          Now
+        </text>
+
+        {/* Dashed guide line + value pill pinned to the tapped point */}
+        {hx !== null && hy !== null && (() => {
+          const text = `${fmt(metricValue(highlighted!, metric))}${cfg.unit}`;
+          const pillW = Math.max(40, text.length * 7.5 + 18);
+          const pillH = 22;
+          const nearRight = hx > PAD.left + chartW - pillW / 2;
+          const nearLeft = hx < PAD.left + pillW / 2;
+          const pillX = nearRight ? PAD.left + chartW - pillW : nearLeft ? PAD.left : hx - pillW / 2;
+          // Fixed row — the pill only moves horizontally while dragging, never up/down with the line.
+          const pillY = 4;
           return (
             <g pointerEvents="none">
-              <line x1={x} y1={PAD.top - 2} x2={x} y2={PAD.top + chartH}
-                stroke={cfg.color} strokeWidth="1" strokeDasharray="3 3" opacity="0.4" />
-              <circle cx={x} cy={y} r={5} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
-              <text x={labelX} y={16} fontSize="11" fontWeight="700" textAnchor={anchor}
-                style={{ fontVariantNumeric: "tabular-nums" }} fill="hsl(var(--foreground))">
-                {fmt(v)}{cfg.unit ? ` ${cfg.unit}` : ""}
+              <line x1={hx} y1={pillY + pillH} x2={hx} y2={PAD.top + chartH}
+                stroke={cfg.color} strokeWidth="1" strokeDasharray="3 3" opacity="0.35" />
+              <circle cx={hx} cy={hy} r={5} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
+              <rect x={pillX} y={pillY} width={pillW} height={pillH} rx={pillH / 2}
+                fill="hsl(var(--foreground))" />
+              <text x={pillX + pillW / 2} y={pillY + pillH / 2 + 4} fontSize="11" fontWeight="700"
+                textAnchor="middle" style={{ fontVariantNumeric: "tabular-nums" }} fill="hsl(var(--background))">
+                {text}
               </text>
             </g>
           );
         })()}
       </svg>
+
+      <p className="text-center text-[11px] text-muted-foreground/70 mt-1 mb-1">
+        Tap or drag the chart to inspect a session
+      </p>
     </>
   );
 }
@@ -738,39 +729,19 @@ export default function Progress() {
         {/* ── HERO: the graph is the main event ── */}
         {selectedExercise && displayPoints.length > 0 ? (
           <div>
-            {/* Title + headline value */}
+            {/* Session count — sits above the stat card */}
             <div className="px-1 pt-1">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">
-                    {chartPoints.length} session{chartPoints.length !== 1 ? "s" : ""}
-                    {last && <> · last {formatDate(last.date).toLowerCase()}</>}
-                  </p>
-                </div>
-                {/* Compare + time range dropdown — together top-right */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {!drillYear && !drillMonth && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button className="flex items-center gap-1 h-8 pl-2.5 pr-2 rounded-xl border border-border bg-background/50 text-[11px] font-semibold text-foreground hover:bg-muted/50 transition-colors">
-                          {TIME_RANGE_OPTIONS.find((o) => o.value === timeRange)?.label}
-                          <ChevronDown className="w-3 h-3 text-muted-foreground" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {TIME_RANGE_OPTIONS.map((opt) => (
-                          <DropdownMenuItem
-                            key={opt.value}
-                            onClick={() => { setTimeRange(opt.value); setDrillYear(null); setDrillMonth(null); }}
-                          >
-                            {opt.label}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </div>
+              <p className="text-xs text-muted-foreground">
+                {chartPoints.length} session{chartPoints.length !== 1 ? "s" : ""}
+                {last && <> · last {formatDate(last.date).toLowerCase()}</>}
+              </p>
+            </div>
+
+            {/* Stat card — headline metric, toggle and graph */}
+            <div className="mt-3 rounded-2xl border border-card-border bg-card p-4">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                {metric === "intensity" ? "Avg Intensity" : metricCfg.label}
+              </p>
               <div className="mt-2 flex items-end gap-2.5 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-4xl font-bold tracking-tight leading-none"
@@ -834,43 +805,61 @@ export default function Progress() {
                   <p className="mt-1.5">Summed across all sets. Raw weight moved — no type multiplier.</p>
                 </div>
               )}
-            </div>
 
-            {/* Metric toggle — full width, even spacing */}
-            <div className="px-1 mt-4">
-              <div className="flex p-1 rounded-xl bg-background/50 backdrop-blur">
-                {METRICS.map((m) => (
-                  <button
-                    key={m.key}
-                    onClick={() => setMetric(m.key)}
-                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all text-center ${
-                      metric === m.key ? "bg-card shadow text-foreground" : "text-muted-foreground"
-                    }`}
-                    data-testid={`button-metric-${m.key}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+              {/* Metric toggle — full width, even spacing */}
+              <div className="mt-4">
+                <div className="flex p-1 rounded-xl bg-background/50 backdrop-blur">
+                  {METRICS.map((m) => (
+                    <button
+                      key={m.key}
+                      onClick={() => setMetric(m.key)}
+                      className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all text-center ${
+                        metric === m.key ? "bg-card shadow text-foreground" : "text-muted-foreground"
+                      }`}
+                      data-testid={`button-metric-${m.key}`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Graph toggle button */}
+              <div className="mt-3">
+                <button
+                  onClick={() => {
+                    if (showGraph) { setDrillYear(null); setDrillMonth(null); }
+                    setShowGraph((v) => !v);
+                  }}
+                  className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                    showGraph
+                      ? "bg-primary/10 text-primary border border-primary/30"
+                      : "bg-muted/40 text-muted-foreground border border-border hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  {showGraph ? "Hide Graph" : "Show Graph"}
+                </button>
               </div>
             </div>
 
-            {/* Graph toggle button */}
-            <div className="px-1 mt-3">
-              <button
-                onClick={() => {
-                  if (showGraph) { setDrillYear(null); setDrillMonth(null); }
-                  setShowGraph((v) => !v);
-                }}
-                className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                  showGraph
-                    ? "bg-primary/10 text-primary border border-primary/30"
-                    : "bg-muted/40 text-muted-foreground border border-border hover:text-foreground hover:bg-muted/60"
-                }`}
-              >
-                <BarChart2 className="w-3.5 h-3.5" />
-                {showGraph ? "Hide Graph" : "Show Graph"}
-              </button>
-            </div>
+            {/* Time range pills */}
+            {showGraph && !drillYear && !drillMonth && (
+              <div className="flex items-center gap-4 mt-4 px-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
+                {TIME_RANGE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setTimeRange(opt.value)}
+                    className={`flex-shrink-0 text-sm font-bold transition-colors ${
+                      timeRange === opt.value ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+                    }`}
+                    data-testid={`button-range-${opt.value}`}
+                  >
+                    {opt.short}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Scrubber: year pills → month pills — aligned to metric tab edges, scrollable */}
             {showGraph && !drillYear && !drillMonth && timeRange === "all" && dataSpansYears && availableYears.length > 1 && (
@@ -978,6 +967,7 @@ export default function Progress() {
                       <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                         {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${wUnit}` : "BW"} × {set.reps}
                         {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                        {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                       </span>
                     ))}
                   </div>
@@ -1095,6 +1085,7 @@ function CalendarModal({ open, onClose, sessions }: {
   onClose: () => void;
   sessions: WorkoutSession[];
 }) {
+  const { imperial } = useTheme();
   const [month, setMonth] = useState<Date>(() => { const d = new Date(); d.setDate(1); return d; });
   const [selected, setSelected] = useState<string | null>(null);
 
@@ -1210,23 +1201,27 @@ function CalendarModal({ open, onClose, sessions }: {
                     </span>
                   )}
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
                   {s.exercises.map((ex) => {
                     const done = ex.sets.filter((set) => set.completed);
                     if (done.length === 0) return null;
-                    const TYPE_SHORT: Record<string, string> = { normal: "N", assisted: "A", failure: "F" };
                     return (
-                      <div key={ex.id} className="text-xs">
-                        <span className="font-medium">{ex.exerciseName}: </span>
-                        <span className="text-muted-foreground font-mono">
-                          {done.slice(0, 3).map((set) => {
-                            const base = `${set.weight > 0 ? set.weight + "kg" : "BW"}×${set.reps}`;
-                            const typeTag = ` (${TYPE_SHORT[set.type] ?? "N"})`;
-                            const partial = (set.partialReps ?? 0) > 0 ? ` +${set.partialReps}p` : "";
-                            return base + typeTag + partial;
-                          }).join(" · ")}
-                          {done.length > 3 ? ` +${done.length - 3}` : ""}
-                        </span>
+                      <div key={ex.id}>
+                        <span className="text-xs font-medium">{ex.exerciseName}</span>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {done.map((set, i) => (
+                            <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
+                              {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
+                              {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                              {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
+                            </span>
+                          ))}
+                        </div>
+                        {ex.notes && (
+                          <p className="mt-1 text-[11px] text-muted-foreground italic flex items-center gap-1">
+                            <Pencil className="w-3 h-3 flex-shrink-0" />{ex.notes}
+                          </p>
+                        )}
                       </div>
                     );
                   })}
