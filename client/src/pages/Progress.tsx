@@ -9,7 +9,7 @@ import {
   getSessions, getPersonalBests, getPersonalBest, getExercises, seedYearOfData,
 } from "@/lib/storage";
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
-import { formatDate, calcIntensity, intensityLabel, topWeight, toDisplay, unitLabel } from "@/lib/hooks";
+import { formatDate, calcIntensity, calcOverload, intensityLabel, topWeight, toDisplay, unitLabel, startOfWeek } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
 import { TrendBadge } from "@/components/TrendBadge";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -29,8 +29,9 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: string }[] =
 // Single accent across every metric — minimal, monochrome + one blue.
 const ACCENT = "hsl(214 94% 60%)";
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
-  { key: "intensity", label: "Intensity",  unit: "%",  color: ACCENT },
-  { key: "volume",    label: "Volume",     unit: "kg", color: ACCENT },
+  { key: "weight",    label: "Overload",    unit: "kg", color: ACCENT },
+  { key: "volume",    label: "Volume",      unit: "kg", color: ACCENT },
+  { key: "intensity", label: "Intensity",   unit: "%",  color: ACCENT },
 ];
 
 interface SessionPoint {
@@ -518,17 +519,17 @@ function ExerciseSelector({
     <div className="relative inline-flex max-w-full">
       <button
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1.5 max-w-full text-left rounded-xl border px-3 py-1.5 active:scale-[0.98] transition-all ${
+        className={`flex items-center gap-1 max-w-full text-left rounded-xl border px-2.5 py-1.5 active:scale-[0.98] transition-all ${
           open
-            ? "bg-primary/15 border-primary/40"
-            : "bg-muted/50 border-border hover:bg-muted/70"
+            ? "bg-primary/15 border-primary/40 text-primary"
+            : "bg-muted/50 border-border text-muted-foreground hover:bg-muted/70"
         }`}
         data-testid="button-exercise-select"
       >
-        <span className="text-lg font-bold truncate">
+        <span className="text-sm font-semibold truncate">
           {selected ? selected.name : "Choose an exercise"}
         </span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
@@ -591,6 +592,63 @@ function ExerciseSelector({
   );
 }
 
+// ─── Muscle Group Filter ─────────────────────────────────────────────────────
+
+function MuscleGroupSelector({
+  groups, selected, onSelect,
+}: {
+  groups: string[];
+  selected: string | null;
+  onSelect: (g: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative inline-flex flex-shrink-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1 text-left rounded-xl border px-2.5 py-1.5 active:scale-[0.98] transition-all ${
+          open || selected
+            ? "bg-primary/15 border-primary/40 text-primary"
+            : "bg-muted/50 border-border text-muted-foreground hover:bg-muted/70"
+        }`}
+        data-testid="button-muscle-group-select"
+      >
+        <span className="text-sm font-semibold truncate max-w-[6rem]">
+          {selected ?? "All muscles"}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-2 z-50 w-44 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+            <div className="max-h-64 overflow-y-auto">
+              <button
+                onClick={() => { onSelect(null); setOpen(false); }}
+                className={`w-full flex items-center px-4 py-2.5 text-left text-sm hover:bg-muted/50 ${!selected ? "text-primary font-semibold bg-primary/5" : ""}`}
+              >
+                All muscles
+              </button>
+              {groups.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => { onSelect(g); setOpen(false); }}
+                  className={`w-full flex items-center px-4 py-2.5 text-left text-sm hover:bg-muted/50 ${g === selected ? "text-primary font-semibold bg-primary/5" : ""}`}
+                  data-testid={`button-select-muscle-group-${g}`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function LastStat({ label, value, unit, color, delta }: {
   label: string; value: string; unit?: string; color: string; delta: number | null;
 }) {
@@ -618,11 +676,13 @@ export default function Progress() {
   const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [metric, setMetric] = useState<Metric>("intensity");
+  const [muscleGroupFilter, setMuscleGroupFilter] = useState<string | null>(null);
+  const [metric, setMetric] = useState<Metric>("weight");
   const [pbOpen, setPbOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
   const [intensityInfo, setIntensityInfo] = useState(false);
   const [volumeInfo, setVolumeInfo] = useState(false);
+  const [overloadInfo, setOverloadInfo] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [showGraph, setShowGraph] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("1m");
@@ -642,6 +702,20 @@ export default function Progress() {
     [exercises, sessions]
   );
 
+  // Muscle groups present among logged exercises — drives the filter dropdown.
+  const loggedMuscleGroups = useMemo(() => {
+    const groups = new Set(loggedExercises.map((ex) => ex.muscleGroup ?? "Other"));
+    return Array.from(groups).sort();
+  }, [loggedExercises]);
+
+  // The exercise picker only shows exercises in the selected muscle group, if filtered.
+  const filteredLoggedExercises = useMemo(
+    () => muscleGroupFilter
+      ? loggedExercises.filter((ex) => (ex.muscleGroup ?? "Other") === muscleGroupFilter)
+      : loggedExercises,
+    [loggedExercises, muscleGroupFilter]
+  );
+
   // Default to the most recently trained exercise.
   useEffect(() => {
     if (!selectedId && loggedExercises.length > 0) {
@@ -650,10 +724,50 @@ export default function Progress() {
     }
   }, [selectedId, loggedExercises, sessions]);
 
+  // If the muscle-group filter no longer includes the selected exercise, jump to
+  // the first exercise in that group so the picker and the page stay in sync.
+  useEffect(() => {
+    if (muscleGroupFilter && !filteredLoggedExercises.some((e) => e.id === selectedId) && filteredLoggedExercises.length > 0) {
+      setSelectedId(filteredLoggedExercises[0].id);
+    }
+  }, [muscleGroupFilter, filteredLoggedExercises, selectedId]);
+
   const points = useMemo(
     () => (selectedId ? buildPoints(sessions, selectedId) : []),
     [sessions, selectedId]
   );
+
+  // Session-logged exercises don't reliably carry their own muscleGroup
+  // snapshot, so cross-reference the exercise catalog (which does) by id.
+  const exerciseMuscleGroupMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const ex of exercises) map.set(ex.id, ex.muscleGroup ?? "Other");
+    return map;
+  }, [exercises]);
+
+  // Sets trained this week vs last week for the selected muscle group —
+  // across every exercise tagged to it, not just the one currently picked.
+  // Answers the question a coach checks first: is this muscle getting enough
+  // volume, and is that trending up or down.
+  const muscleGroupWeeklySets = useMemo(() => {
+    if (!muscleGroupFilter) return null;
+    const thisWeekStart = startOfWeek(Date.now());
+    const lastWeekStart = thisWeekStart - 7 * 86_400_000;
+    let thisWeek = 0;
+    let lastWeek = 0;
+    for (const s of sessions) {
+      const inThisWeek = s.startedAt >= thisWeekStart;
+      const inLastWeek = !inThisWeek && s.startedAt >= lastWeekStart;
+      if (!inThisWeek && !inLastWeek) continue;
+      for (const ex of s.exercises) {
+        const group = ex.muscleGroup ?? exerciseMuscleGroupMap.get(ex.exerciseId) ?? "Other";
+        if (group !== muscleGroupFilter) continue;
+        const count = ex.sets.filter((set) => set.completed).length;
+        if (inThisWeek) thisWeek += count; else lastWeek += count;
+      }
+    }
+    return { thisWeek, lastWeek };
+  }, [sessions, muscleGroupFilter, exerciseMuscleGroupMap]);
 
   // Convert weight/volume to display units; other fields are unit-less.
   const displayPoints = useMemo(() => {
@@ -726,6 +840,10 @@ export default function Progress() {
     : null;
   const metricCfg = METRICS.find((m) => m.key === metric)!;
   const wUnit = unitLabel(imperial);
+  // Overload: matches each set against the closest-reps set from last
+  // session, rather than just comparing the session's single top weight —
+  // a strong single can hide regression across every other rep range.
+  const overloadComparison = metric === "weight" && last && prev ? calcOverload(last.sets, prev.sets) : null;
 
   function handleSeed() {
     seedYearOfData();
@@ -744,6 +862,7 @@ export default function Progress() {
         <Header
           onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed}
           loggedExercises={[]} selectedId={null} onSelectExercise={() => {}}
+          muscleGroups={[]} muscleGroupFilter={null} onSelectMuscleGroup={() => {}}
         />
         <div className="flex flex-col items-center justify-center py-24 gap-4 px-6 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
@@ -762,12 +881,42 @@ export default function Progress() {
     <div className="flex flex-col min-h-full pb-24">
       <Header
         onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed}
-        loggedExercises={loggedExercises} selectedId={selectedId}
+        loggedExercises={filteredLoggedExercises} selectedId={selectedId}
         onSelectExercise={(id) => { setSelectedId(id); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }}
+        muscleGroups={loggedMuscleGroups} muscleGroupFilter={muscleGroupFilter}
+        onSelectMuscleGroup={(g) => { setMuscleGroupFilter(g); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }}
       />
       <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions} />
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-4">
+        {/* Muscle-group weekly sets — every exercise tagged to the group,
+            not just whichever one is currently selected below. */}
+        {muscleGroupFilter && muscleGroupWeeklySets && (
+          <div className="rounded-2xl border border-card-border bg-card p-4">
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              {muscleGroupFilter} · Sets This Week
+            </p>
+            <div className="mt-2">
+              <span className="text-4xl font-bold tracking-tight leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
+                {muscleGroupWeeklySets.thisWeek}
+              </span>
+              <span className="text-sm text-muted-foreground ml-1.5">sets</span>
+              <div className="mt-1">
+                {muscleGroupWeeklySets.lastWeek === 0 ? (
+                  <span className="text-[11px] font-semibold text-muted-foreground">No sets last week</span>
+                ) : muscleGroupWeeklySets.thisWeek === muscleGroupWeeklySets.lastWeek ? (
+                  <span className="text-[11px] font-semibold text-muted-foreground">Same as last week</span>
+                ) : (
+                  <TrendBadge
+                    delta={muscleGroupWeeklySets.thisWeek - muscleGroupWeeklySets.lastWeek}
+                    text={`${muscleGroupWeeklySets.thisWeek > muscleGroupWeeklySets.lastWeek ? "+" : ""}${muscleGroupWeeklySets.thisWeek - muscleGroupWeeklySets.lastWeek} sets`}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── HERO: the graph is the main event ── */}
         {selectedExercise && displayPoints.length > 0 ? (
           <div>
@@ -798,23 +947,44 @@ export default function Progress() {
                       {intensityLabel(metricValue(last!, metric))}
                     </span>
                   )}
-                  {(metric === "intensity" || metric === "volume") && (
+                  {(metric === "intensity" || metric === "volume" || metric === "weight") && (
                     <button
-                      onClick={() => metric === "intensity" ? setIntensityInfo((v) => !v) : setVolumeInfo((v) => !v)}
+                      onClick={() => metric === "intensity" ? setIntensityInfo((v) => !v) : metric === "volume" ? setVolumeInfo((v) => !v) : setOverloadInfo((v) => !v)}
                       className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
                     >
                       <Info className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
-                {/* Trend vs last session — makes the hero number mean something */}
-                {delta !== null && (
-                  <TrendBadge
-                    delta={delta}
-                    text={deltaPct !== null
-                      ? `${delta > 0 ? "+" : ""}${Math.round(deltaPct)}%`
-                      : `${delta > 0 ? "+" : ""}${fmt(delta)}`}
-                  />
+                {/* Trend vs last session — always says something, even when
+                    the answer is "no progress yet", so the metric never goes
+                    silent on the one question that actually matters.
+                    Overload compares each set to the closest-reps set from
+                    last session, rather than just top-weight-vs-top-weight. */}
+                {metric === "weight" ? (
+                  overloadComparison && overloadComparison.verdict !== "none" ? (
+                    overloadComparison.verdict === "same" ? (
+                      <span className="text-[11px] font-semibold text-muted-foreground">Same weight at matching reps</span>
+                    ) : (
+                      <TrendBadge
+                        delta={overloadComparison.verdict === "up" ? 1 : -1}
+                        text={`${overloadComparison.improvedCount}/${overloadComparison.totalCompared} sets heavier at same reps`}
+                      />
+                    )
+                  ) : (
+                    <span className="text-[11px] font-semibold text-muted-foreground">No comparable sets last time</span>
+                  )
+                ) : delta !== null && (
+                  delta === 0 ? (
+                    <span className="text-[11px] font-semibold text-muted-foreground">No change vs last</span>
+                  ) : (
+                    <TrendBadge
+                      delta={delta}
+                      text={deltaPct !== null
+                        ? `${delta > 0 ? "+" : ""}${Math.round(deltaPct)}%`
+                        : `${delta > 0 ? "+" : ""}${fmt(delta)}`}
+                    />
+                  )
                 )}
               </div>
               {metric === "intensity" && intensityInfo && (
@@ -841,6 +1011,20 @@ export default function Progress() {
                     <summary className="cursor-pointer text-foreground/80 font-medium">Show the technical details</summary>
                     <div className="mt-1.5 flex flex-col gap-1.5">
                       <p>Per set: weight × (reps + partials × 0.5), summed across all completed sets.</p>
+                    </div>
+                  </details>
+                </div>
+              )}
+              {metric === "weight" && overloadInfo && (
+                <div className="mt-2 mb-1 rounded-xl bg-muted/40 border border-border/50 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
+                  <p className="font-semibold text-foreground mb-1">What is overload?</p>
+                  <p>Whether you lifted more weight than last time, at the same rep counts. The number above is still your top weight this session — but "vs last" compares set-by-set, not just your single best lift.</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-foreground/80 font-medium">Show the technical details</summary>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      <p>Each completed set is matched to the closest-reps set from your last session, then compared directly by weight.</p>
+                      <p>A single heavy set can't hide regression elsewhere — every trained rep range counts toward the verdict.</p>
+                      <p>This is prioritized over Intensity and Volume for hypertrophy tracking — it's the most direct evidence of progressive overload.</p>
                     </div>
                   </details>
                 </div>
@@ -1067,44 +1251,53 @@ export default function Progress() {
 }
 
 function Header({
-  onCalClick, onPbClick, pbCount, onSeedClick, loggedExercises, selectedId, onSelectExercise,
+  onCalClick, onPbClick, pbCount, onSeedClick,
+  loggedExercises, selectedId, onSelectExercise,
+  muscleGroups, muscleGroupFilter, onSelectMuscleGroup,
 }: {
   onCalClick: () => void; onPbClick: () => void; pbCount: number; onSeedClick?: () => void;
   loggedExercises: Exercise[]; selectedId: string | null; onSelectExercise: (id: string) => void;
+  muscleGroups: string[]; muscleGroupFilter: string | null; onSelectMuscleGroup: (g: string | null) => void;
 }) {
   return (
     <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
-        <div className="min-w-0">
-          <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={onSelectExercise} />
+      <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
+        <div className="flex items-center justify-between mb-3">
+          <h1 className="text-3xl font-bold tracking-tight">Progress</h1>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {onSeedClick && (
+              <button
+                onClick={onSeedClick}
+                className="h-7 px-2 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+                title="Seed 1 year of test data (dev only)"
+              >
+                Seed 1yr
+              </button>
+            )}
+            {pbCount > 0 && (
+              <button
+                onClick={onPbClick}
+                className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative"
+                title="Personal bests"
+              >
+                <Trophy className="w-4 h-4" />
+                <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">{pbCount}</span>
+              </button>
+            )}
+            <button
+              onClick={onCalClick}
+              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="Gym calendar"
+            >
+              <CalendarDays className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {onSeedClick && (
-            <button
-              onClick={onSeedClick}
-              className="h-7 px-2 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
-              title="Seed 1 year of test data (dev only)"
-            >
-              Seed 1yr
-            </button>
-          )}
-          {pbCount > 0 && (
-            <button
-              onClick={onPbClick}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative"
-              title="Personal bests"
-            >
-              <Trophy className="w-4 h-4" />
-              <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">{pbCount}</span>
-            </button>
-          )}
-          <button
-            onClick={onCalClick}
-            className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            title="Gym calendar"
-          >
-            <CalendarDays className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          <MuscleGroupSelector groups={muscleGroups} selected={muscleGroupFilter} onSelect={onSelectMuscleGroup} />
+          <div className="min-w-0 flex-1">
+            <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={onSelectExercise} />
+          </div>
         </div>
       </div>
     </div>

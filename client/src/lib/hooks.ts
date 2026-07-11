@@ -126,6 +126,16 @@ export function formatWeight(w: number): string {
   return w % 1 === 0 ? `${w}` : `${w}`;
 }
 
+/** Monday 00:00 of the week containing `ts`. */
+export function startOfWeek(ts: number): number {
+  const d = new Date(ts);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 // ─── Set metrics ─────────────────────────────────────────────────────────────
 // Shared so the Session screen and Progress screen always agree.
 
@@ -191,6 +201,57 @@ export function intensityLabel(pct: number): string {
 export function topWeight(sets: WorkoutSet[]): number {
   const done = sets.filter((s) => s.completed);
   return done.length ? Math.max(...done.map((s) => s.weight)) : 0;
+}
+
+export interface OverloadComparison {
+  verdict: "up" | "down" | "same" | "none";
+  improvedCount: number;
+  totalCompared: number;
+  avgPctChange: number | null;
+}
+
+/**
+ * Progressive overload, done right: rather than just comparing the session's
+ * single heaviest set (which can mask real per-rep-range regression — a
+ * strong single can hide 3 lighter sets everywhere else), each completed set
+ * this session is matched against the closest-reps set from last session,
+ * and compared directly. That answers the real question a lifter cares
+ * about: "at this rep count, am I lifting more than last time?"
+ */
+export function calcOverload(currentSets: WorkoutSet[], lastSets: WorkoutSet[]): OverloadComparison {
+  const doneCurrent = currentSets.filter((s) => s.completed && s.weight > 0);
+  const doneLast = lastSets.filter((s) => s.completed && s.weight > 0);
+  if (doneCurrent.length === 0 || doneLast.length === 0) {
+    return { verdict: "none", improvedCount: 0, totalCompared: 0, avgPctChange: null };
+  }
+
+  const usedLastIdx = new Set<number>();
+  const pctChanges: number[] = [];
+
+  for (const cur of doneCurrent) {
+    let bestIdx = -1;
+    let bestDiff = Infinity;
+    doneLast.forEach((last, i) => {
+      if (usedLastIdx.has(i)) return;
+      const diff = Math.abs(last.reps - cur.reps);
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    if (bestIdx === -1) continue;
+    usedLastIdx.add(bestIdx);
+    const last = doneLast[bestIdx];
+    pctChanges.push(((cur.weight - last.weight) / last.weight) * 100);
+  }
+
+  if (pctChanges.length === 0) {
+    return { verdict: "none", improvedCount: 0, totalCompared: 0, avgPctChange: null };
+  }
+
+  const improvedCount = pctChanges.filter((p) => p > 0).length;
+  const decreasedCount = pctChanges.filter((p) => p < 0).length;
+  const avgPctChange = pctChanges.reduce((sum, p) => sum + p, 0) / pctChanges.length;
+  const verdict = improvedCount > decreasedCount ? "up" : decreasedCount > improvedCount ? "down" : "same";
+
+  return { verdict, improvedCount, totalCompared: pctChanges.length, avgPctChange };
 }
 
 // ─── Unit conversion ─────────────────────────────────────────────────────────

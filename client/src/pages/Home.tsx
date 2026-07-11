@@ -20,7 +20,6 @@ import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
 import type { WorkoutTemplate, WorkoutSession } from "@/lib/types";
 import { formatDate, toDisplay, unitLabel } from "@/lib/hooks";
-import { LiftLogLogo } from "@/components/LiftLogLogo";
 import { useTheme } from "@/lib/theme";
 
 const TEMPLATE_COLORS = [
@@ -226,26 +225,21 @@ export default function Home() {
     <div className="flex flex-col min-h-full pb-20">
       {/* Header */}
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 py-4 flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center flex-shrink-0">
-                <LiftLogLogo size={20} className="text-primary-foreground" />
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight">GreatLift</h1>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-            </p>
+        <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold tracking-tight">GreatLift</h1>
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Settings"
+              data-testid="button-settings"
+              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={() => setShowSettings(true)}
-            title="Settings"
-            data-testid="button-settings"
-            className="flex items-center justify-center h-9 w-9 rounded-full border border-border bg-muted/60 text-muted-foreground transition-colors active:scale-95 hover:text-foreground"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          </p>
         </div>
       </div>
 
@@ -275,7 +269,7 @@ export default function Home() {
         {/* Templates */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               My Workouts
             </h2>
             <Button
