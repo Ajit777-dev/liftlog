@@ -133,7 +133,9 @@ export default function Exercises() {
       {/* Header */}
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
         <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
-          <div className="flex items-center gap-2 mb-2">
+          <h1 className="text-3xl font-bold tracking-tight mb-3">Exercises</h1>
+
+          <div className="flex items-center gap-2 mb-3">
             {/* Search */}
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -142,30 +144,27 @@ export default function Exercises() {
                 placeholder="Search exercises..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 rounded-lg border border-input bg-background text-sm outline-none focus:ring-1 focus:ring-primary"
+                className="w-full pl-9 pr-4 py-2.5 rounded-full border border-input bg-muted/40 text-sm outline-none focus:ring-1 focus:ring-primary"
                 data-testid="input-search-exercises"
               />
             </div>
             <Button
-              size="sm"
               onClick={() => setShowCreate(true)}
               data-testid="button-create-exercise"
-              className="gap-1.5 flex-shrink-0"
+              className="gap-1.5 flex-shrink-0 rounded-full"
             >
               <Plus className="w-4 h-4" />
               New
             </Button>
           </div>
 
-          {/* Muscle group filter pills */}
+          {/* Muscle group filter tabs */}
           {availableGroups.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 pb-1">
+            <div className="flex gap-4 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
               <button
                 onClick={() => setFilterGroup(null)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                  !filterGroup
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-muted/40 text-muted-foreground border-border"
+                className={`flex-shrink-0 text-sm transition-colors ${
+                  !filterGroup ? "font-bold text-foreground" : "text-muted-foreground"
                 }`}
               >
                 All
@@ -174,10 +173,8 @@ export default function Exercises() {
                 <button
                   key={mg}
                   onClick={() => setFilterGroup(filterGroup === mg ? null : mg)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
-                    filterGroup === mg
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted/40 text-muted-foreground border-border"
+                  className={`flex-shrink-0 text-sm transition-colors ${
+                    filterGroup === mg ? "font-bold text-foreground" : "text-muted-foreground"
                   }`}
                   data-testid={`filter-${mg}`}
                 >
@@ -225,36 +222,23 @@ export default function Exercises() {
                       onClick={() => setViewExercise(ex)}
                       data-testid={`row-exercise-${ex.id}`}
                     >
-                      <div
-                        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: "hsl(var(--muted))" }}
-                      >
-                        <Dumbbell className="w-4 h-4 text-muted-foreground" />
-                      </div>
-
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm truncate">{ex.name}</span>
-                          {pb && <Trophy className="w-3 h-3 text-accent flex-shrink-0" />}
+                          <span className="text-base truncate">{ex.name}</span>
+                          {pb && (
+                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                              PB
+                            </span>
+                          )}
                         </div>
                         {pb && (
-                          <p className="text-[11px] text-muted-foreground">
+                          <p className="text-sm text-muted-foreground">
                             Personal best: {pb.weight}kg × {pb.reps}
                           </p>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        {ex.muscleGroup && (
-                          <Badge
-                            variant="secondary"
-                            className={`text-[10px] ${MUSCLE_GROUP_COLORS[ex.muscleGroup] ?? "bg-muted text-muted-foreground"}`}
-                          >
-                            {ex.muscleGroup}
-                          </Badge>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     </button>
                   );
                 })}

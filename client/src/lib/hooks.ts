@@ -146,28 +146,32 @@ const INTENSITY_TYPE_MULTIPLIER: Record<WorkoutSet["type"], number> = {
 };
 
 /**
- * Intensity: average %1RM across completed sets.
- * Weighted sets are scored against the estimated 1RM from `pb` (Epley) — the
- * classic "intensity based on sets and reps" approach (NSCA). Bodyweight sets
- * (weight 0) have no 1RM to compare against, so they fall back to the
- * reps-to-failure %1RM curve (Brzycki-style) instead. Both are then discounted
- * by a set-type multiplier (see INTENSITY_TYPE_MULTIPLIER).
+ * Intensity: average %1RM across completed sets, scored against your
+ * personal best (Epley) — the classic "intensity based on sets and reps"
+ * approach (NSCA). Bodyweight sets (weight 0) have no 1RM to compare
+ * against, so they use the reps-to-failure %1RM curve (Brzycki-style)
+ * instead. Both are then discounted by a set-type multiplier (see
+ * INTENSITY_TYPE_MULTIPLIER).
+ *
+ * Returns null when there's no PB to score weighted sets against yet
+ * (only possible mid-workout, the very first time an exercise is ever
+ * logged) — rather than fabricating a number from the session's own data.
  */
-export function calcIntensity(sets: WorkoutSet[], pb?: { weight: number; reps: number }): number {
+export function calcIntensity(sets: WorkoutSet[], pb?: { weight: number; reps: number }): number | null {
   // A set with no reps and no weight logged represents no actual work — the
   // reps-to-failure curve misreads "0 reps" as a near-max single (~100%),
   // which would otherwise score an empty set as high intensity.
   const done = sets.filter((s) => s.completed && (s.reps > 0 || s.weight > 0));
-  if (done.length === 0) return 0;
+  if (done.length === 0) return null;
 
-  const refE1RM = pb && pb.weight > 0
-    ? estimate1RM(pb.weight, pb.reps)
-    : Math.max(0, ...done.filter((s) => s.weight > 0).map((s) => estimate1RM(s.weight, s.reps + (s.partialReps ?? 0) * 0.5)));
+  const hasWeightedSets = done.some((s) => s.weight > 0);
+  const refE1RM = pb && pb.weight > 0 ? estimate1RM(pb.weight, pb.reps) : 0;
+  if (hasWeightedSets && refE1RM === 0) return null;
 
   const pctFor = (s: WorkoutSet) => {
     const effReps = s.reps + (s.partialReps ?? 0) * 0.5;
     const raw = s.weight > 0
-      ? (refE1RM > 0 ? Math.min(100, (estimate1RM(s.weight, effReps) / refE1RM) * 100) : 0)
+      ? Math.min(100, (estimate1RM(s.weight, effReps) / refE1RM) * 100)
       : Math.max(0, Math.min(100, 102.78 - 2.78 * effReps));
     return raw * INTENSITY_TYPE_MULTIPLIER[s.type];
   };

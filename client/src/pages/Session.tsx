@@ -3,7 +3,7 @@ import { useLocation, useParams } from "wouter";
 import { nanoid } from "nanoid";
 import {
   X, Plus, Minus, Check, ChevronDown, ChevronUp, Timer, Zap,
-  TrendingUp, TrendingDown, AlertTriangle, Activity,
+  AlertTriangle, Activity,
   ArrowLeft, Trophy, Clock, MoreVertical, Trash2, Edit2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getTemplate, getActiveSession, saveActiveSession, clearActiveSession,
   saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate,
-  getLastSessionForTemplate, updateTemplate, getPersonalBest
+  getLastSessionForTemplate, updateTemplate
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate, TemplateExercise } from "@/lib/types";
-import { useTimer, useRestTimer, formatDuration, formatDate, calcIntensity, intensityLabel, topWeight, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
+import { useTimer, useRestTimer, formatDuration, formatDate, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
+import { TrendBadge } from "@/components/TrendBadge";
 
 const CUTE_EMOJI_SRCS: Record<string, string> = {
   bench_press:    "/cute-emojis/emoji_bunny_bench_press.png",
@@ -1151,62 +1152,20 @@ function AddCardioDialog({
 
 function ExerciseProgressSummary({
   exercise,
-  lastData,
 }: {
   exercise: SessionExercise;
   lastData: { sets: WorkoutSet[]; date: number } | null;
 }) {
-  const { imperial } = useTheme();
   const completedSets = exercise.sets.filter((s) => s.completed);
   if (completedSets.length === 0) return null;
 
   const totalReps = completedSets.reduce((sum, s) => sum + s.reps, 0);
   const totalPartial = completedSets.reduce((sum, s) => sum + (s.partialReps ?? 0), 0);
-  const pb = getPersonalBest(exercise.exerciseId);
-  const intensity = Math.round(calcIntensity(completedSets, pb));
-  const bestWeight = topWeight(completedSets);
-
-  const lastDone = lastData?.sets.filter((s) => s.completed) ?? [];
-  const lastIntensity = lastDone.length ? Math.round(calcIntensity(lastDone, pb)) : null;
-  const lastWeight = lastDone.length ? topWeight(lastDone) : null;
-  const intDelta = lastIntensity !== null ? intensity - lastIntensity : null;
-  const wtDelta = lastWeight !== null ? bestWeight - lastWeight : null;
-
-  const dispBestWeight = toDisplay(bestWeight, imperial);
-  const dispLastWeight = lastWeight !== null ? Math.round(toDisplay(lastWeight, imperial) * 10) / 10 : null;
 
   return (
-    <div className="rounded-lg px-3 py-2.5 mb-1 bg-muted/40 border border-border/50">
-      <div className="grid grid-cols-2 gap-2">
-        <SummaryStat label="Intensity" value={`${intensity}%`} hint={intensityLabel(intensity)} color="text-primary" delta={intDelta} last={lastIntensity} unit="%" />
-        <SummaryStat label="Top Weight" value={`${dispBestWeight}${unitLabel(imperial)}`} color="text-foreground" delta={wtDelta} last={dispLastWeight} unit={unitLabel(imperial)} />
-      </div>
-      <p className="text-[11px] text-muted-foreground mt-2">
-        {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}
-      </p>
-    </div>
-  );
-}
-
-function SummaryStat({ label, value, hint, color, delta, last, unit }: {
-  label: string; value: string; hint?: string; color: string; delta: number | null; last: number | null; unit?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <span className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</span>
-      <div className="flex items-baseline gap-1.5">
-        <span className={`text-base font-bold font-mono ${color}`}>{value}</span>
-        {hint && <span className="text-[10px] font-semibold text-muted-foreground">{hint}</span>}
-      </div>
-      {last !== null && (
-        <div className={`text-[10px] font-semibold ${
-          delta && delta > 0 ? "text-green-500" : delta && delta < 0 ? "text-destructive" : "text-muted-foreground"
-        }`}>
-          last {last % 1 === 0 ? last : last.toFixed(1)}{unit ?? ""}
-          {delta && delta > 0 ? " ↑" : delta && delta < 0 ? " ↓" : " ="}
-        </div>
-      )}
-    </div>
+    <p className="text-[11px] text-muted-foreground px-1 mb-1">
+      {completedSets.length} sets · {totalReps} reps{totalPartial > 0 ? ` + ${totalPartial}p` : ""}
+    </p>
   );
 }
 
@@ -1273,17 +1232,31 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
 
       {/* Weight / Reps / Type / Partial in a 2-col grid */}
       <div className="grid grid-cols-2 gap-3">
-        <FieldBox label="Weight">
-          <NumberInput
-            value={toDisplay(set.weight, imperial)}
-            step={imperial ? 5 : 2.5}
-            min={0}
-            suffix={unitLabel(imperial)}
-            onChange={(v) => onUpdate({ weight: fromDisplay(v, imperial) })}
-            disabled={set.completed}
-            testId={`input-weight-${set.id}`}
-          />
-        </FieldBox>
+        <div>
+          <FieldBox label="Weight">
+            <NumberInput
+              value={toDisplay(set.weight, imperial)}
+              step={imperial ? 5 : 2.5}
+              min={0}
+              suffix={unitLabel(imperial)}
+              onChange={(v) => onUpdate({ weight: fromDisplay(v, imperial) })}
+              disabled={set.completed}
+              testId={`input-weight-${set.id}`}
+            />
+          </FieldBox>
+          {lastSet && lastSet.weight > 0 && (() => {
+            const delta = toDisplay(set.weight, imperial) - toDisplay(lastSet.weight, imperial);
+            return (
+              <div className="flex justify-center mt-1">
+                <TrendBadge
+                  size="xs"
+                  delta={delta}
+                  text={`${delta > 0 ? "+" : ""}${delta % 1 === 0 ? delta : delta.toFixed(1)}${unitLabel(imperial)}`}
+                />
+              </div>
+            );
+          })()}
+        </div>
         <div>
           <FieldBox label="Reps">
             <NumberInput
@@ -1295,13 +1268,13 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
               testId={`input-reps-${set.id}`}
             />
           </FieldBox>
-          {lastSet && lastSet.reps > 0 && (
-            <div className={`text-[10px] font-semibold text-center mt-1 ${
-              set.reps > lastSet.reps ? "text-green-500" :
-              set.reps < lastSet.reps ? "text-destructive" :
-              "text-muted-foreground"
-            }`}>
-              last {lastSet.reps}{set.reps > lastSet.reps ? " ↑" : set.reps < lastSet.reps ? " ↓" : " ="}
+          {lastSet && (
+            <div className="flex justify-center mt-1">
+              <TrendBadge
+                size="xs"
+                delta={set.reps - lastSet.reps}
+                text={`${set.reps > lastSet.reps ? "+" : ""}${set.reps - lastSet.reps} reps`}
+              />
             </div>
           )}
         </div>
@@ -1331,17 +1304,28 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
             </DropdownMenuContent>
           </DropdownMenu>
         </FieldBox>
-        <FieldBox label="Partial">
-          <NumberInput
-            value={set.partialReps}
-            step={1}
-            min={0}
-            suffix="p"
-            onChange={(v) => onUpdate({ partialReps: v })}
-            disabled={set.completed}
-            testId={`input-partial-${set.id}`}
-          />
-        </FieldBox>
+        <div>
+          <FieldBox label="Partial">
+            <NumberInput
+              value={set.partialReps}
+              step={1}
+              min={0}
+              suffix="p"
+              onChange={(v) => onUpdate({ partialReps: v })}
+              disabled={set.completed}
+              testId={`input-partial-${set.id}`}
+            />
+          </FieldBox>
+          {lastSet && (set.partialReps > 0 || lastSet.partialReps > 0) && (
+            <div className="flex justify-center mt-1">
+              <TrendBadge
+                size="xs"
+                delta={set.partialReps - lastSet.partialReps}
+                text={`${set.partialReps > lastSet.partialReps ? "+" : ""}${set.partialReps - lastSet.partialReps}p`}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1418,11 +1402,10 @@ function NumberInput({
   return (
     <div className="flex items-center justify-between gap-1 px-1">
       <button
-        onMouseDown={() => startHold(-1)}
-        onMouseUp={stopHold}
-        onMouseLeave={stopHold}
-        onTouchStart={(e) => { e.preventDefault(); startHold(-1); }}
-        onTouchEnd={stopHold}
+        onPointerDown={(e) => { e.preventDefault(); startHold(-1); }}
+        onPointerUp={stopHold}
+        onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
         disabled={disabled || value <= min}
         className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground active:scale-90 transition-transform disabled:opacity-30 flex-shrink-0"
         data-testid={`${testId}-minus`}
@@ -1439,11 +1422,10 @@ function NumberInput({
         {suffix && <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{suffix}</span>}
       </button>
       <button
-        onMouseDown={() => startHold(1)}
-        onMouseUp={stopHold}
-        onMouseLeave={stopHold}
-        onTouchStart={(e) => { e.preventDefault(); startHold(1); }}
-        onTouchEnd={stopHold}
+        onPointerDown={(e) => { e.preventDefault(); startHold(1); }}
+        onPointerUp={stopHold}
+        onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
         disabled={disabled}
         className="w-7 h-7 rounded-full flex items-center justify-center text-muted-foreground active:scale-90 transition-transform disabled:opacity-30 flex-shrink-0"
         data-testid={`${testId}-plus`}

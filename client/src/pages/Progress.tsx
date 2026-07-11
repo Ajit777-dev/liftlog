@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   TrendingUp, TrendingDown, Trophy,
@@ -11,6 +11,7 @@ import {
 import type { WorkoutSession, PersonalBest, Exercise, WorkoutSet } from "@/lib/types";
 import { formatDate, calcIntensity, intensityLabel, topWeight, toDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
+import { TrendBadge } from "@/components/TrendBadge";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 // ─── Metrics ────────────────────────────────────────────────────────────────
@@ -29,7 +30,7 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: string }[] =
 const ACCENT = "hsl(214 94% 60%)";
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: "intensity", label: "Intensity",  unit: "%",  color: ACCENT },
-  { key: "weight",    label: "Max Wt",     unit: "kg", color: ACCENT },
+  { key: "volume",    label: "Volume",     unit: "kg", color: ACCENT },
 ];
 
 interface SessionPoint {
@@ -47,8 +48,13 @@ function metricValue(p: SessionPoint, m: Metric): number {
   return m === "intensity" ? p.intensity : m === "weight" ? p.weight : p.volume;
 }
 
-function fmt(v: number): string {
-  if (v >= 1000) return `${(v / 1000).toFixed(1)}k`;
+// `unit` lets kg/lb values skip the "k" abbreviation, which would otherwise
+// collide with the unit suffix (e.g. "2.9k" + "kg" → "2.9kkg").
+function fmt(v: number, unit?: string): string {
+  if (v >= 1000) {
+    if (unit === "kg" || unit === "lb") return Math.round(v).toLocaleString();
+    return `${(v / 1000).toFixed(1)}k`;
+  }
   return v % 1 === 0 ? `${v}` : v.toFixed(1);
 }
 
@@ -85,10 +91,11 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string): SessionPoi
     .map((s) => {
       const ex = s.exercises.find((e) => e.exerciseId === exerciseId)!;
       const done = ex.sets.filter((set) => set.completed);
+      const intensityRaw = calcIntensity(done, pb);
       return {
         date: s.startedAt,
         label: shortDate(s.startedAt),
-        intensity: Math.round(calcIntensity(done, pb)),
+        intensity: intensityRaw !== null ? Math.round(intensityRaw) : 0,
         weight: topWeight(done),
         volume: done.reduce((sum, set) => sum + set.weight * (set.reps + (set.partialReps ?? 0) * 0.5), 0),
         reps: done.reduce((sum, set) => sum + set.reps, 0),
@@ -114,6 +121,8 @@ function LineChart({
   const cfg = METRICS.find((m) => m.key === metric)!;
   const { imperial } = useTheme();
   const [sel, setSel] = useState<SessionPoint | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const svgRef = useRef<SVGSVGElement>(null);
 
   const W = 340, H = 200;
   // Generous top padding so a peak node's value label always has room ABOVE it
@@ -147,14 +156,49 @@ function LineChart({
     ? `${pathD} L ${nodePts[nodePts.length - 1].x} ${PAD.top + chartH} L ${nodePts[0].x} ${PAD.top + chartH} Z`
     : "";
 
-  // Highlighted point — only set once the user taps a node.
-  const highlighted = sel;
+  const lastPt = normalPts[normalPts.length - 1];
+  // Highlighted point — defaults to the most recent session, then tracks
+  // whatever was last tapped/dragged/hovered so the box is never blank,
+  // until the user explicitly dismisses it with the X.
+  const highlighted = dismissed ? null : sel ?? lastPt ?? null;
   const hIdx = highlighted ? normalPts.findIndex((p) => p.date === highlighted.date) : -1;
   const gradId = `area-grad-${metric}-${mode}`;
 
   const hx = hIdx !== -1 ? cx(hIdx) : null;
   const hy = hIdx !== -1 ? cy(metricValue(highlighted!, metric)) : null;
-  const lastPt = normalPts[normalPts.length - 1];
+
+  // Pointer-based scrubbing works uniformly for mouse hover/drag and touch
+  // drag (unlike mouseenter, which touch never fires).
+  // Only registers within the filled area: below the curve, above the x-axis.
+  const selectFromClientPoint = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg || nodePts.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    const relX = ((clientX - rect.left) / rect.width) * W;
+    const relY = ((clientY - rect.top) / rect.height) * H;
+    let closest = 0;
+    let minDist = Infinity;
+    nodePts.forEach((p, i) => {
+      const d = Math.abs(p.x - relX);
+      if (d < minDist) { minDist = d; closest = i; }
+    });
+    const curveY = nodePts[closest].y;
+    if (relY < curveY || relY > PAD.top + chartH) return;
+    setDismissed(false);
+    setSel(normalPts[closest]);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    (e.currentTarget as SVGSVGElement).setPointerCapture(e.pointerId);
+    selectFromClientPoint(e.clientX, e.clientY);
+  };
+  const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+    // Mouse: track on hover, like a normal chart tooltip.
+    // Touch/pen: only while actively in contact (dragging), never for a
+    // stray move — touch has no separate "hover" state.
+    if (e.pointerType !== "mouse" && e.buttons === 0) return;
+    selectFromClientPoint(e.clientX, e.clientY);
+  };
 
   return (
     <>
@@ -169,7 +213,7 @@ function LineChart({
           <>
             <div className="flex items-center justify-between gap-2 mb-1.5">
               <span className="text-xs font-semibold">{highlighted.label}</span>
-              <button onClick={() => setSel(null)} className="text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setSel(null); setDismissed(true); }} className="text-muted-foreground hover:text-foreground">
                 <X className="w-3 h-3" />
               </button>
             </div>
@@ -190,7 +234,13 @@ function LineChart({
           </>
         )}
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", height: "auto", display: "block", touchAction: "none" }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+      >
         <defs>
           {/* Vertical fade for the area fill under the line */}
           <linearGradient id={gradId} x1="0" y1={PAD.top} x2="0" y2={PAD.top + chartH} gradientUnits="userSpaceOnUse">
@@ -214,25 +264,17 @@ function LineChart({
           stroke={cfg.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
           style={{ animation: "draw-line 0.4s ease-out forwards" }} />
 
-        {/* Click/hover targets over every node so any point can be inspected */}
+        {/* Node markers — selection itself is handled by the pointer scrubber
+            on the svg, so dragging/tapping anywhere on the chart works, not
+            just precisely on a node (this is also what makes touch drag work,
+            since touch never fires mouseenter). */}
         {normalPts.map((p, i) => {
           const v = metricValue(p, metric);
           const x = cx(i), y = cy(v);
           const isSel = highlighted?.date === p.date;
-          const isLast = p.date === lastPt.date;
+          if (!isSel) return null;
           return (
-            <g key={i} style={{ cursor: "pointer" }}
-              onClick={() => setSel(isSel ? null : p)}
-              onMouseEnter={() => setSel(p)}
-            >
-              <circle cx={x} cy={y} r={10} fill="transparent" />
-              {!highlighted && isLast && (
-                <circle cx={x} cy={y} r={4} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
-              )}
-              {isSel && (
-                <circle cx={x} cy={y} r={4} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
-              )}
-            </g>
+            <circle key={i} cx={x} cy={y} r={4} fill={cfg.color} stroke="hsl(var(--background))" strokeWidth="2" />
           );
         })}
 
@@ -248,7 +290,7 @@ function LineChart({
 
         {/* Dashed guide line + value pill pinned to the tapped point */}
         {hx !== null && hy !== null && (() => {
-          const text = `${fmt(metricValue(highlighted!, metric))}${cfg.unit}`;
+          const text = `${fmt(metricValue(highlighted!, metric), cfg.unit)}${cfg.unit}`;
           const pillW = Math.max(40, text.length * 7.5 + 18);
           const pillH = 22;
           const nearRight = hx > PAD.left + chartW - pillW / 2;
@@ -561,7 +603,7 @@ function LastStat({ label, value, unit, color, delta }: {
       {delta !== null && delta !== 0 && (
         <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${delta > 0 ? "text-green-500" : "text-destructive"}`}>
           {delta > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-          {delta > 0 ? "+" : ""}{fmt(delta)} vs prev
+          {delta > 0 ? "+" : ""}{fmt(delta, unit)} vs prev
         </span>
       )}
     </div>
@@ -742,11 +784,11 @@ export default function Progress() {
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
                 {metric === "intensity" ? "Avg Intensity" : metricCfg.label}
               </p>
-              <div className="mt-2 flex items-end gap-2.5 flex-wrap">
+              <div className="mt-2">
                 <div className="flex items-center gap-2">
                   <span className="text-4xl font-bold tracking-tight leading-none"
                     style={{ color: metricCfg.color, fontVariantNumeric: "tabular-nums" }}>
-                    {fmt(metricValue(last!, metric))}
+                    {fmt(metricValue(last!, metric), metric === "weight" || metric === "volume" ? wUnit : undefined)}
                   </span>
                   <span className="text-sm text-muted-foreground">
                     {metric === "weight" || metric === "volume" ? wUnit : metricCfg.unit || metricCfg.label.toLowerCase()}
@@ -766,19 +808,13 @@ export default function Progress() {
                   )}
                 </div>
                 {/* Trend vs last session — makes the hero number mean something */}
-                {delta !== null && delta !== 0 && (
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold mb-0.5 ${
-                      delta > 0 ? "bg-green-500/15 text-green-600" : "bg-destructive/15 text-destructive"
-                    }`}
-                    title="Change vs your previous session"
-                  >
-                    {delta > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {deltaPct !== null
+                {delta !== null && (
+                  <TrendBadge
+                    delta={delta}
+                    text={deltaPct !== null
                       ? `${delta > 0 ? "+" : ""}${Math.round(deltaPct)}%`
                       : `${delta > 0 ? "+" : ""}${fmt(delta)}`}
-                    <span className="font-medium opacity-70 ml-0.5">vs last</span>
-                  </span>
+                  />
                 )}
               </div>
               {metric === "intensity" && intensityInfo && (
@@ -799,10 +835,14 @@ export default function Progress() {
               )}
               {metric === "volume" && volumeInfo && (
                 <div className="mt-2 mb-1 rounded-xl bg-muted/40 border border-border/50 px-3 py-2.5 text-xs text-muted-foreground leading-relaxed">
-                  <p className="font-semibold text-foreground mb-1">How volume is calculated</p>
-                  <p>For each completed set:</p>
-                  <p className="font-mono mt-1 text-[11px] text-foreground/80">weight × (reps + partials × 0.5)</p>
-                  <p className="mt-1.5">Summed across all sets. Raw weight moved — no type multiplier.</p>
+                  <p className="font-semibold text-foreground mb-1">What is volume?</p>
+                  <p>Total weight moved this session. Higher = more total work done.</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-foreground/80 font-medium">Show the technical details</summary>
+                    <div className="mt-1.5 flex flex-col gap-1.5">
+                      <p>Per set: weight × (reps + partials × 0.5), summed across all completed sets.</p>
+                    </div>
+                  </details>
                 </div>
               )}
 
