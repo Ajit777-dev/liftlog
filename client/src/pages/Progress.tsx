@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useLocation, useSearch } from "wouter";
 import { createPortal } from "react-dom";
 import {
   TrendingUp, TrendingDown, Trophy,
@@ -13,6 +14,9 @@ import { formatDate, calcIntensity, calcOverload, intensityLabel, topWeight, toD
 import { useTheme } from "@/lib/theme";
 import { TrendBadge } from "@/components/TrendBadge";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { PageHeader, PageTitle } from "@/components/PageHeader";
+import { SectionLabel } from "@/components/SectionLabel";
+import { IconButton } from "@/components/IconButton";
 
 // ─── Metrics ────────────────────────────────────────────────────────────────
 
@@ -28,10 +32,13 @@ const TIME_RANGE_OPTIONS: { value: TimeRange; label: string; short: string }[] =
 
 // Single accent across every metric — minimal, monochrome + one blue.
 const ACCENT = "hsl(214 94% 60%)";
+// Intensity (%1RM) is disabled for now — it's a strength/neural-adaptation
+// signal, not a hypertrophy one, and testing showed it didn't add value for
+// general users next to Overload and Volume. The calculation and info copy
+// are left in place below so it can be re-enabled by adding this entry back.
 const METRICS: { key: Metric; label: string; unit: string; color: string }[] = [
   { key: "weight",    label: "Overload",    unit: "kg", color: ACCENT },
   { key: "volume",    label: "Volume",      unit: "kg", color: ACCENT },
-  { key: "intensity", label: "Intensity",   unit: "%",  color: ACCENT },
 ];
 
 interface SessionPoint {
@@ -91,7 +98,8 @@ function buildPoints(sessions: WorkoutSession[], exerciseId: string): SessionPoi
     .reverse() // getSessions() is newest-first; chart reads left→right oldest→newest
     .map((s) => {
       const ex = s.exercises.find((e) => e.exerciseId === exerciseId)!;
-      const done = ex.sets.filter((set) => set.completed);
+      // Warmup sets don't count toward progress metrics (Overload/Volume/Intensity).
+      const done = ex.sets.filter((set) => set.completed && set.type !== "warmup");
       const intensityRaw = calcIntensity(done, pb);
       return {
         date: s.startedAt,
@@ -222,7 +230,7 @@ function LineChart({
               {highlighted.sets.map((set, si) => (
                 <span key={si} className="flex-shrink-0 text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                   {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
-                  {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                  {(set.partialReps ?? 0) > 0 && <span className="text-warning">+{set.partialReps}p</span>}
                   {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                 </span>
               ))}
@@ -484,7 +492,7 @@ function RepsChart({ points }: { points: SessionPoint[] }) {
               {tooltip.set.weight > 0 ? `${toDisplay(tooltip.set.weight, imperial)} ${unitLabel(imperial)}` : "BW"} × {tooltip.set.reps} reps
             </p>
             {(tooltip.set.partialReps ?? 0) > 0 && (
-              <p className="text-xs text-orange-400 mt-0.5">+{tooltip.set.partialReps} partial</p>
+              <p className="text-xs text-warning mt-0.5">+{tooltip.set.partialReps} partial</p>
             )}
           </div>
         </>,
@@ -571,9 +579,9 @@ function ExerciseSelector({
                   }, {})
                 ).sort(([a], [b]) => a.localeCompare(b)).map(([group, exs]) => (
                   <div key={group}>
-                    <div className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/30 sticky top-0">
+                    <SectionLabel className="px-4 py-1.5 bg-muted/30 sticky top-0">
                       {group}
-                    </div>
+                    </SectionLabel>
                     {exs.map((ex) => (
                       <button key={ex.id} onClick={() => { onSelect(ex.id); setOpen(false); setQuery(""); }}
                         className={`w-full flex items-center px-4 py-2.5 text-left text-sm hover:bg-muted/50 ${ex.id === selectedId ? "text-primary font-semibold bg-primary/5" : ""}`}
@@ -659,7 +667,7 @@ function LastStat({ label, value, unit, color, delta }: {
         {value}{unit && <span className="text-sm font-normal text-muted-foreground ml-0.5">{unit}</span>}
       </span>
       {delta !== null && delta !== 0 && (
-        <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${delta > 0 ? "text-green-500" : "text-destructive"}`}>
+        <span className={`flex items-center gap-0.5 text-[11px] font-semibold ${delta > 0 ? "text-success" : "text-destructive"}`}>
           {delta > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
           {delta > 0 ? "+" : ""}{fmt(delta, unit)} vs prev
         </span>
@@ -672,11 +680,16 @@ function LastStat({ label, value, unit, color, delta }: {
 
 export default function Progress() {
   const { imperial } = useTheme();
+  const [, navigate] = useLocation();
+  const search = useSearch();
   const [sessions, setSessions] = useState<WorkoutSession[]>([]);
   const [pbs, setPbs] = useState<PersonalBest[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [muscleGroupFilter, setMuscleGroupFilter] = useState<string | null>(null);
+  // Muscle groups trained in the workout that was just finished — scopes the
+  // muscle-group dropdown to that session instead of every group ever logged.
+  const [sessionTrainedGroups, setSessionTrainedGroups] = useState<string[] | null>(null);
   const [metric, setMetric] = useState<Metric>("weight");
   const [pbOpen, setPbOpen] = useState(false);
   const [calOpen, setCalOpen] = useState(false);
@@ -684,7 +697,6 @@ export default function Progress() {
   const [volumeInfo, setVolumeInfo] = useState(false);
   const [overloadInfo, setOverloadInfo] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const [showGraph, setShowGraph] = useState(false);
   const [timeRange, setTimeRange] = useState<TimeRange>("1m");
   const [drillYear, setDrillYear] = useState<number | null>(null);
   const [drillMonth, setDrillMonth] = useState<string | null>(null); // "YYYY-MM"
@@ -696,17 +708,42 @@ export default function Progress() {
     setExercises(getExercises());
   }, []);
 
+  // Arriving from a just-finished workout — scope the muscle-group filter to
+  // that session's trained groups instead of the full historical list.
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const groups = params.get("groups");
+    const group = params.get("group");
+    const exercise = params.get("exercise");
+    if (!groups) return;
+    setSessionTrainedGroups(groups.split(","));
+    if (group) setMuscleGroupFilter(group);
+    if (exercise) setSelectedId(exercise);
+    navigate("/progress", { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
   // Only exercises the user has actually logged — keeps the picker meaningful.
   const loggedExercises = useMemo(
     () => exercises.filter((ex) => sessions.some((s) => s.exercises.some((e) => e.exerciseId === ex.id))),
     [exercises, sessions]
   );
 
-  // Muscle groups present among logged exercises — drives the filter dropdown.
+  // Muscle groups present among logged exercises — drives the filter dropdown,
+  // ordered by most-recently-trained first (sessions are newest-first).
+  // Uses the exercise catalog (not SessionExercise.muscleGroup, which older
+  // sessions may lack) for a reliably correct group per exercise.
   const loggedMuscleGroups = useMemo(() => {
-    const groups = new Set(loggedExercises.map((ex) => ex.muscleGroup ?? "Other"));
-    return Array.from(groups).sort();
-  }, [loggedExercises]);
+    const catalogGroup = new Map(loggedExercises.map((ex) => [ex.id, ex.muscleGroup ?? "Other"]));
+    const groups: string[] = [];
+    for (const s of sessions) {
+      for (const ex of s.exercises) {
+        const g = catalogGroup.get(ex.exerciseId);
+        if (g && !groups.includes(g)) groups.push(g);
+      }
+    }
+    return groups;
+  }, [sessions, loggedExercises]);
 
   // The exercise picker only shows exercises in the selected muscle group, if filtered.
   const filteredLoggedExercises = useMemo(
@@ -882,9 +919,13 @@ export default function Progress() {
       <Header
         onCalClick={() => setCalOpen(true)} onPbClick={() => setPbOpen(true)} pbCount={pbs.length} onSeedClick={devSeed}
         loggedExercises={filteredLoggedExercises} selectedId={selectedId}
-        onSelectExercise={(id) => { setSelectedId(id); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }}
-        muscleGroups={loggedMuscleGroups} muscleGroupFilter={muscleGroupFilter}
-        onSelectMuscleGroup={(g) => { setMuscleGroupFilter(g); setShowGraph(false); setDrillYear(null); setDrillMonth(null); }}
+        onSelectExercise={(id) => { setSelectedId(id); setDrillYear(null); setDrillMonth(null); }}
+        muscleGroups={sessionTrainedGroups ?? loggedMuscleGroups} muscleGroupFilter={muscleGroupFilter}
+        onSelectMuscleGroup={(g) => {
+          setMuscleGroupFilter(g);
+          if (g === null) setSessionTrainedGroups(null);
+          setDrillYear(null); setDrillMonth(null);
+        }}
       />
       <CalendarModal open={calOpen} onClose={() => setCalOpen(false)} sessions={sessions} />
 
@@ -892,10 +933,8 @@ export default function Progress() {
         {/* Muscle-group weekly sets — every exercise tagged to the group,
             not just whichever one is currently selected below. */}
         {muscleGroupFilter && muscleGroupWeeklySets && (
-          <div className="rounded-2xl border border-card-border bg-card p-4">
-            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-              {muscleGroupFilter} · Sets This Week
-            </p>
+          <div className="rounded-xl border border-card-border bg-card p-4">
+            <SectionLabel>{muscleGroupFilter} · Sets This Week</SectionLabel>
             <div className="mt-2">
               <span className="text-4xl font-bold tracking-tight leading-none" style={{ fontVariantNumeric: "tabular-nums" }}>
                 {muscleGroupWeeklySets.thisWeek}
@@ -929,10 +968,8 @@ export default function Progress() {
             </div>
 
             {/* Stat card — headline metric, toggle and graph */}
-            <div className="mt-3 rounded-2xl border border-card-border bg-card p-4">
-              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                {metric === "intensity" ? "Avg Intensity" : metricCfg.label}
-              </p>
+            <div className="mt-3 rounded-xl border border-card-border bg-card p-4">
+              <SectionLabel>{metric === "intensity" ? "Avg Intensity" : metricCfg.label}</SectionLabel>
               <div className="mt-2">
                 <div className="flex items-center gap-2">
                   <span className="text-4xl font-bold tracking-tight leading-none"
@@ -1048,27 +1085,10 @@ export default function Progress() {
                 </div>
               </div>
 
-              {/* Graph toggle button */}
-              <div className="mt-3">
-                <button
-                  onClick={() => {
-                    if (showGraph) { setDrillYear(null); setDrillMonth(null); }
-                    setShowGraph((v) => !v);
-                  }}
-                  className={`w-full py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
-                    showGraph
-                      ? "bg-primary/10 text-primary border border-primary/30"
-                      : "bg-muted/40 text-muted-foreground border border-border hover:text-foreground hover:bg-muted/60"
-                  }`}
-                >
-                  <BarChart2 className="w-3.5 h-3.5" />
-                  {showGraph ? "Hide Graph" : "Show Graph"}
-                </button>
-              </div>
             </div>
 
             {/* Time range pills */}
-            {showGraph && !drillYear && !drillMonth && (
+            {!drillYear && !drillMonth && (
               <div className="flex items-center gap-4 mt-4 px-1 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 {TIME_RANGE_OPTIONS.map((opt) => (
                   <button
@@ -1086,7 +1106,7 @@ export default function Progress() {
             )}
 
             {/* Scrubber: year pills → month pills — aligned to metric tab edges, scrollable */}
-            {showGraph && !drillYear && !drillMonth && timeRange === "all" && dataSpansYears && availableYears.length > 1 && (
+            {!drillYear && !drillMonth && timeRange === "all" && dataSpansYears && availableYears.length > 1 && (
               <div className="mx-1 mt-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
                   {availableYears.map((y) => (
@@ -1098,7 +1118,7 @@ export default function Progress() {
                 </div>
               </div>
             )}
-            {showGraph && !drillMonth && timeRange !== "1m" && (drillYear || !dataSpansYears || timeRange !== "all") && availableMonths.length > 1 && (
+            {!drillMonth && timeRange !== "1m" && (drillYear || !dataSpansYears || timeRange !== "all") && availableMonths.length > 1 && (
               <div className="mx-1 mt-2 overflow-x-auto [&::-webkit-scrollbar]:hidden">
                 <div className="flex gap-2 pb-1">
                   {availableMonths.map((m) => (
@@ -1112,7 +1132,7 @@ export default function Progress() {
             )}
 
             {/* Breadcrumb back bar */}
-            {showGraph && (drillYear || drillMonth) && (
+            {(drillYear || drillMonth) && (
               <div className="px-1 mt-4 mb-1 flex items-center gap-2">
                 <button
                   onClick={() => { drillMonth ? setDrillMonth(null) : setDrillYear(null); }}
@@ -1132,7 +1152,7 @@ export default function Progress() {
             {/* The chart:
                 - month drill → normal (area + full hollow nodes, interactive)
                 - everything else → overview (gradient thin line, no nodes) */}
-            {showGraph && (
+            {(
               <div className="px-0 pt-2 pb-4">
                 {drillMonth ? (
                   chartPoints.length >= 1 ? (
@@ -1158,7 +1178,7 @@ export default function Progress() {
             )}
           </div>
         ) : (
-          <div className="rounded-3xl border border-card-border bg-card px-4 py-10">
+          <div className="rounded-xl border border-card-border bg-card px-4 py-10">
             <div className="text-center">
               <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
                 <BarChart2 className="w-7 h-7 text-muted-foreground" />
@@ -1190,7 +1210,7 @@ export default function Progress() {
                     {p.sets.map((set, i) => (
                       <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                         {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${wUnit}` : "BW"} × {set.reps}
-                        {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                        {(set.partialReps ?? 0) > 0 && <span className="text-warning">+{set.partialReps}p</span>}
                         {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                       </span>
                     ))}
@@ -1260,47 +1280,38 @@ function Header({
   muscleGroups: string[]; muscleGroupFilter: string | null; onSelectMuscleGroup: (g: string | null) => void;
 }) {
   return (
-    <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-      <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-3xl font-bold tracking-tight">Progress</h1>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {onSeedClick && (
-              <button
-                onClick={onSeedClick}
-                className="h-7 px-2 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
-                title="Seed 1 year of test data (dev only)"
-              >
-                Seed 1yr
-              </button>
-            )}
-            {pbCount > 0 && (
-              <button
-                onClick={onPbClick}
-                className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors relative"
-                title="Personal bests"
-              >
-                <Trophy className="w-4 h-4" />
-                <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">{pbCount}</span>
-              </button>
-            )}
+    <PageHeader>
+      <div className="flex items-center justify-between mb-3">
+        <PageTitle>Progress</PageTitle>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {onSeedClick && (
+            // Dev-only affordance — intentionally not themed, so it stands out as a debug tool.
             <button
-              onClick={onCalClick}
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="Gym calendar"
+              onClick={onSeedClick}
+              className="h-7 px-2 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-colors"
+              title="Seed 1 year of test data (dev only)"
             >
-              <CalendarDays className="w-4 h-4" />
+              Seed 1yr
             </button>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <MuscleGroupSelector groups={muscleGroups} selected={muscleGroupFilter} onSelect={onSelectMuscleGroup} />
-          <div className="min-w-0 flex-1">
-            <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={onSelectExercise} />
-          </div>
+          )}
+          {pbCount > 0 && (
+            <IconButton onClick={onPbClick} className="relative" title="Personal bests">
+              <Trophy className="w-4 h-4" />
+              <span className="absolute -top-1 -right-1 text-[9px] font-bold bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center">{pbCount}</span>
+            </IconButton>
+          )}
+          <IconButton onClick={onCalClick} title="Gym calendar">
+            <CalendarDays className="w-4 h-4" />
+          </IconButton>
         </div>
       </div>
-    </div>
+      <div className="flex items-center gap-2">
+        <MuscleGroupSelector groups={muscleGroups} selected={muscleGroupFilter} onSelect={onSelectMuscleGroup} />
+        <div className="min-w-0 flex-1">
+          <ExerciseSelector exercises={loggedExercises} selectedId={selectedId} onSelect={onSelectExercise} />
+        </div>
+      </div>
+    </PageHeader>
   );
 }
 
@@ -1445,7 +1456,7 @@ function CalendarModal({ open, onClose, sessions }: {
                           {done.map((set, i) => (
                             <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                               {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
-                              {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                              {(set.partialReps ?? 0) > 0 && <span className="text-warning">+{set.partialReps}p</span>}
                               {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                             </span>
                           ))}

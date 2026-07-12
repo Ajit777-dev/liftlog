@@ -4,7 +4,7 @@ import { nanoid } from "nanoid";
 import {
   X, Plus, Minus, Check, ChevronDown, ChevronUp, Timer, Zap,
   AlertTriangle, Activity,
-  ArrowLeft, Trophy, Clock, MoreVertical, Trash2, Edit2
+  ArrowLeft, Trophy, Clock, MoreVertical, Trash2, Edit2, GripVertical, Repeat
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -19,13 +19,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   getTemplate, getActiveSession, saveActiveSession, clearActiveSession,
   saveSession, getLastSessionDataForExercise, getExercises, addExerciseToTemplate,
-  getLastSessionForTemplate, updateTemplate
+  getLastSessionForTemplate, updateTemplate, createExercise
 } from "@/lib/storage";
 import type { WorkoutSession, SessionExercise, WorkoutSet, SetType, SessionCardio, CardioEntry, WorkoutTemplate, TemplateExercise } from "@/lib/types";
+import { MUSCLE_GROUPS } from "@/lib/types";
 import { useTimer, useRestTimer, formatDuration, formatDate, toDisplay, fromDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
 import { haptic } from "@/lib/haptics";
 import { TrendBadge } from "@/components/TrendBadge";
+import { PageHeader, PageHeaderRow, SubpageTitle } from "@/components/PageHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 
 const CUTE_EMOJI_SRCS: Record<string, string> = {
   bench_press:    "/cute-emojis/emoji_bunny_bench_press.png",
@@ -51,6 +54,8 @@ export default function Session() {
   const [showAddCardio, setShowAddCardio] = useState(false);
   const [restTimerTarget, setRestTimerTarget] = useState(90);
   const { restSeconds, isResting, startRest, stopRest } = useRestTimer();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const rowRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const elapsed = useTimer(!!session && !session.finishedAt, session?.startedAt ?? 0);
 
@@ -121,6 +126,42 @@ export default function Session() {
     });
   }, []);
 
+  // Press-and-hold drag reorder: move the dragged exercise to whichever row
+  // the pointer is currently over.
+  const reorderExercise = useCallback((fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    updateSession((s) => {
+      const exs = [...s.exercises];
+      const from = exs.findIndex((e) => e.id === fromId);
+      const to = exs.findIndex((e) => e.id === toId);
+      if (from === -1 || to === -1) return s;
+      const [moved] = exs.splice(from, 1);
+      exs.splice(to, 0, moved);
+      return { ...s, exercises: exs };
+    });
+  }, [updateSession]);
+
+  useEffect(() => {
+    if (!dragId) return;
+    const onMove = (e: PointerEvent) => {
+      for (const [id, el] of Object.entries(rowRefs.current)) {
+        if (!el || id === dragId) continue;
+        const rect = el.getBoundingClientRect();
+        if (e.clientY > rect.top && e.clientY < rect.bottom) {
+          reorderExercise(dragId, id);
+          break;
+        }
+      }
+    };
+    const onUp = () => setDragId(null);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [dragId, reorderExercise]);
+
   const updateSet = useCallback(
     (exerciseId: string, setId: string, updates: Partial<WorkoutSet>) => {
       updateSession((s) => ({
@@ -186,6 +227,26 @@ export default function Session() {
     [updateSession]
   );
 
+  // Marks the target exercise's first set as "superset", pointing at the
+  // group's anchor exercise — extends an existing superset into a tri-set.
+  const addToSuperset = useCallback((anchorId: string, targetExerciseId: string) => {
+    updateSession((s) => {
+      const anchor = s.exercises.find((e) => e.id === anchorId);
+      if (!anchor) return s;
+      return {
+        ...s,
+        exercises: s.exercises.map((ex) => {
+          if (ex.id !== targetExerciseId || ex.sets.length === 0) return ex;
+          const [first, ...rest] = ex.sets;
+          return {
+            ...ex,
+            sets: [{ ...first, type: "superset", supersetExerciseId: anchor.id, supersetExerciseName: anchor.exerciseName }, ...rest],
+          };
+        }),
+      };
+    });
+  }, [updateSession]);
+
   const toggleComplete = useCallback(
     (exerciseId: string, setId: string, currentSet: WorkoutSet) => {
       const completed = !currentSet.completed;
@@ -243,7 +304,30 @@ export default function Session() {
       updateTemplate(template.id, { exercises: templateExercises });
     }
 
-    navigate("/progress");
+    // Older sessions/templates may predate muscleGroup being stored on the
+    // exercise itself — fall back to the exercise catalog by id.
+    const catalogMuscleGroup = new Map(getExercises().map((e) => [e.id, e.muscleGroup]));
+    const groupOf = (ex: SessionExercise) => ex.muscleGroup ?? catalogMuscleGroup.get(ex.exerciseId);
+
+    const trainedExercises = finished.exercises.filter((ex) => ex.sets.length > 0);
+    const trainedGroups: string[] = [];
+    for (const ex of trainedExercises) {
+      const g = groupOf(ex);
+      if (g && !trainedGroups.includes(g)) trainedGroups.push(g);
+    }
+    const lastExercise = trainedExercises[trainedExercises.length - 1] ?? finished.exercises[finished.exercises.length - 1];
+    const lastGroup = (lastExercise ? groupOf(lastExercise) : undefined) ?? trainedGroups[0];
+
+    if (trainedGroups.length > 0 && lastGroup && lastExercise) {
+      const params = new URLSearchParams({
+        groups: trainedGroups.join(","),
+        group: lastGroup,
+        exercise: lastExercise.exerciseId,
+      });
+      navigate(`/progress?${params.toString()}`);
+    } else {
+      navigate("/progress");
+    }
   };
 
   const cancelWorkout = () => {
@@ -393,10 +477,8 @@ export default function Session() {
 
   return (
     <div className="flex flex-col min-h-full" style={{ paddingBottom: "88px" }}>
-      {/* Session Header */}
-      <div className="sticky top-0 z-40 bg-background/98 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          <div className="flex items-center justify-between mb-2">
+      <PageHeader>
+          <PageHeaderRow className="justify-between mb-2">
             <div className="flex items-center gap-3">
               <Button
                 size="icon"
@@ -415,7 +497,7 @@ export default function Session() {
                   />
                 )}
                 <div>
-                  <h1 className="font-bold text-lg leading-tight tracking-tight">{session.templateName}</h1>
+                  <SubpageTitle>{session.templateName}</SubpageTitle>
                   <div className="flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
                     <span className="text-xs text-primary font-mono font-semibold tabular-nums">
@@ -425,10 +507,10 @@ export default function Session() {
                 </div>
               </div>
             </div>
-          </div>
+          </PageHeaderRow>
 
           {/* Stats bar */}
-          <div className="flex items-center gap-4 py-2.5 px-3.5 rounded-xl bg-card/70 border border-border/60">
+          <div className="flex items-center gap-4 py-2.5 px-3 rounded-xl bg-card/70 border border-border/60">
             <div className="flex items-center gap-1.5">
               <Check className="w-3.5 h-3.5 text-primary" />
               <span className="text-xs font-medium tabular-nums">{completedSets} sets</span>
@@ -452,8 +534,7 @@ export default function Session() {
               </button>
             )}
           </div>
-        </div>
-      </div>
+      </PageHeader>
 
       {/* Rest Timer Banner */}
       {isResting && (
@@ -482,26 +563,88 @@ export default function Session() {
 
       {/* Exercise List */}
       <div className="max-w-lg mx-auto w-full px-4 py-3 flex flex-col gap-3">
-        {session.exercises.map((ex, idx) => (
-          <ExerciseCard
-            key={ex.id}
-            exercise={ex}
-            index={idx}
-            expanded={expandedExercises.has(ex.id)}
-            sessionId={session.id}
-            onToggleExpand={() => toggleExpand(ex.id)}
-            onUpdateSet={(setId, updates) => updateSet(ex.id, setId, updates)}
-            onAddSet={() => addSet(ex.id)}
-            onRemoveSet={(setId) => removeSet(ex.id, setId)}
-            onToggleComplete={(setId, set) => toggleComplete(ex.id, setId, set)}
-            onCompleteAll={() => completeExercise(ex.id)}
-            onRemoveExercise={() => removeExercise(ex.id)}
-            onUpdateNote={(note) => updateSession((s) => ({
-              ...s,
-              exercises: s.exercises.map((e) => e.id !== ex.id ? e : { ...e, notes: note || undefined }),
-            }))}
-          />
-        ))}
+        {(() => {
+          const renderCard = (ex: SessionExercise, idx: number) => (
+            <ExerciseCard
+              key={ex.id}
+              exercise={ex}
+              index={idx}
+              expanded={expandedExercises.has(ex.id)}
+              sessionId={session.id}
+              dragging={dragId === ex.id}
+              rowRef={(el) => { rowRefs.current[ex.id] = el; }}
+              onDragHandlePointerDown={() => setDragId(ex.id)}
+              onToggleExpand={() => toggleExpand(ex.id)}
+              onUpdateSet={(setId, updates) => updateSet(ex.id, setId, updates)}
+              onAddSet={() => addSet(ex.id)}
+              onRemoveSet={(setId) => removeSet(ex.id, setId)}
+              onToggleComplete={(setId, set) => toggleComplete(ex.id, setId, set)}
+              onCompleteAll={() => completeExercise(ex.id)}
+              onRemoveExercise={() => removeExercise(ex.id)}
+              onUpdateNote={(note) => updateSession((s) => ({
+                ...s,
+                exercises: s.exercises.map((e) => e.id !== ex.id ? e : { ...e, notes: note || undefined }),
+              }))}
+              sessionExercises={session.exercises}
+            />
+          );
+
+          // Group exercises connected by a "superset" set (any set on A
+          // pointing at B) into one merged card, via connected components so
+          // 3+ exercise supersets (tri-sets) also merge correctly. Render-time
+          // only — the stored array order never changes.
+          const adjacency = new Map<string, Set<string>>();
+          const addEdge = (a: string, b: string) => {
+            if (!adjacency.has(a)) adjacency.set(a, new Set());
+            if (!adjacency.has(b)) adjacency.set(b, new Set());
+            adjacency.get(a)!.add(b);
+            adjacency.get(b)!.add(a);
+          };
+          for (const ex of session.exercises) {
+            for (const s of ex.sets) {
+              if (s.type === "superset" && s.supersetExerciseId) addEdge(ex.id, s.supersetExerciseId);
+            }
+          }
+
+          const visited = new Set<string>();
+          const nodes: React.ReactNode[] = [];
+          session.exercises.forEach((ex) => {
+            if (visited.has(ex.id)) return;
+            if (!adjacency.has(ex.id)) {
+              visited.add(ex.id);
+              nodes.push(renderCard(ex, session.exercises.indexOf(ex)));
+              return;
+            }
+            const compIds: string[] = [];
+            const queue = [ex.id];
+            visited.add(ex.id);
+            while (queue.length) {
+              const cur = queue.shift()!;
+              compIds.push(cur);
+              for (const n of Array.from(adjacency.get(cur) ?? [])) {
+                if (!visited.has(n)) { visited.add(n); queue.push(n); }
+              }
+            }
+            const members = session.exercises.filter((e) => compIds.includes(e.id));
+            nodes.push(
+              <SupersetGroup
+                key={`superset-${ex.id}`}
+                exercises={members}
+                sessionId={session.id}
+                expanded={expandedExercises.has(ex.id)}
+                onToggleExpand={() => toggleExpand(ex.id)}
+                onUpdateSet={updateSet}
+                onAddSet={addSet}
+                onRemoveSet={removeSet}
+                onToggleComplete={toggleComplete}
+                onCompleteAll={completeExercise}
+                sessionExercises={session.exercises}
+                onAddToSuperset={(targetId) => addToSuperset(members[0].id, targetId)}
+              />
+            );
+          });
+          return nodes;
+        })()}
 
         {/* Add Exercise */}
         <button
@@ -516,9 +659,7 @@ export default function Session() {
         {/* Cardio Section */}
         {session.cardio.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3 px-4">
-              Cardio
-            </h3>
+            <SectionLabel className="mb-3 px-4">Cardio</SectionLabel>
             <div className="flex flex-col gap-3">
               {session.cardio.map((cardio, idx) => (
                 <CardioCard
@@ -646,10 +787,14 @@ interface ExerciseCardProps {
   onCompleteAll: () => void;
   onRemoveExercise: () => void;
   onUpdateNote: (note: string) => void;
+  dragging: boolean;
+  rowRef: (el: HTMLDivElement | null) => void;
+  onDragHandlePointerDown: () => void;
+  sessionExercises: SessionExercise[];
 }
 
 function ExerciseCard({
-  exercise, index, expanded, sessionId,
+  exercise, index, expanded, sessionId, dragging, rowRef, onDragHandlePointerDown, sessionExercises,
   onToggleExpand, onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll, onRemoveExercise, onUpdateNote
 }: ExerciseCardProps) {
   const { imperial } = useTheme();
@@ -676,13 +821,22 @@ function ExerciseCard({
 
   return (
     <div
+      ref={rowRef}
       className={`rounded-xl border bg-card overflow-hidden transition-all ${
-        allDone ? "border-primary/30" : "border-card-border"
+        dragging ? "opacity-60 shadow-lg border-primary/40" : allDone ? "border-primary/30" : "border-card-border"
       }`}
       data-testid={`card-exercise-${exercise.id}`}
     >
       {/* Exercise Header */}
       <div className="w-full flex items-center gap-3 px-4 py-3.5">
+        <button
+          className="flex-shrink-0 text-muted-foreground/40 cursor-grab touch-none"
+          style={{ touchAction: "none" }}
+          onPointerDown={(e) => { e.preventDefault(); onDragHandlePointerDown(); }}
+          data-testid={`button-drag-exercise-${exercise.id}`}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
         {/* Clickable area toggles expand */}
         <button
           className="flex items-center gap-3 flex-1 min-w-0 text-left"
@@ -756,9 +910,7 @@ function ExerciseCard({
                     className="fixed z-50 rounded-xl border border-border bg-card shadow-xl p-3 w-56"
                     style={{ top: historyPos.top, right: historyPos.right }}
                   >
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      Last Session
-                    </p>
+                    <SectionLabel className="text-[10px] mb-2">Last Session</SectionLabel>
                     <div className="flex flex-col gap-1.5">
                       {lastSets.map((s, i) => (
                         <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
@@ -770,7 +922,7 @@ function ExerciseCard({
                             ({SET_TYPE_CONFIG[s.type]?.short ?? "N"})
                           </span>
                           {(s.partialReps ?? 0) > 0 && (
-                            <span className="text-orange-400">+{s.partialReps}p</span>
+                            <span className="text-warning">+{s.partialReps}p</span>
                           )}
                         </div>
                       ))}
@@ -849,6 +1001,7 @@ function ExerciseCard({
               set={set}
               index={setIdx}
               lastSet={lastData?.sets.filter(s => s.completed)[setIdx]}
+              otherExercises={sessionExercises.filter((e) => e.id !== exercise.id)}
               onUpdate={(updates) => onUpdateSet(set.id, updates)}
               onRemove={() => onRemoveSet(set.id)}
               onToggleComplete={() => onToggleComplete(set.id, set)}
@@ -881,6 +1034,112 @@ function ExerciseCard({
               Done
             </Button>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Superset Group ─────────────────────────────────────────────────────────
+// Two or more exercises linked via a "superset" set, shown as one card with
+// one shared header and a labeled, independently-editable set section per
+// exercise underneath.
+
+function SupersetGroup({
+  exercises, sessionId, expanded, onToggleExpand,
+  onUpdateSet, onAddSet, onRemoveSet, onToggleComplete, onCompleteAll,
+  sessionExercises, onAddToSuperset,
+}: {
+  exercises: SessionExercise[];
+  sessionId: string;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onUpdateSet: (exerciseId: string, setId: string, updates: Partial<WorkoutSet>) => void;
+  onAddSet: (exerciseId: string) => void;
+  onRemoveSet: (exerciseId: string, setId: string) => void;
+  onToggleComplete: (exerciseId: string, setId: string, set: WorkoutSet) => void;
+  onCompleteAll: (exerciseId: string) => void;
+  sessionExercises: SessionExercise[];
+  onAddToSuperset: (targetExerciseId: string) => void;
+}) {
+  const completed = exercises.reduce((sum, ex) => sum + ex.sets.filter((s) => s.completed).length, 0);
+  const total = exercises.reduce((sum, ex) => sum + ex.sets.length, 0);
+  const memberIds = new Set(exercises.map((e) => e.id));
+  const candidates = sessionExercises.filter((e) => !memberIds.has(e.id));
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const allDone = completed === total && total > 0;
+
+  return (
+    <div
+      className={`rounded-xl border bg-card overflow-hidden transition-all ${allDone ? "border-primary/30" : "border-card-border"}`}
+      data-testid={`card-superset-${exercises[0].id}`}
+    >
+      <button
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+        onClick={onToggleExpand}
+        data-testid={`button-expand-superset-${exercises[0].id}`}
+      >
+        <div className="w-9 h-9 rounded-xl bg-accent/15 text-accent flex items-center justify-center flex-shrink-0">
+          <Repeat className="w-4 h-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-sm leading-tight truncate">
+            {exercises.map((e) => e.exerciseName).join(" ⇄ ")}
+          </h3>
+          <p className="text-[11px] text-accent font-medium tabular-nums">Superset · {completed}/{total} sets</p>
+        </div>
+        {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground flex-shrink-0" />}
+      </button>
+
+      {expanded && (
+        <div className="px-4 pb-4 flex flex-col gap-4">
+          {exercises.map((ex) => {
+            const lastData = getLastSessionDataForExercise(ex.exerciseId, sessionId);
+            return (
+              <div key={ex.id} className="flex flex-col gap-2 pt-3 border-t border-border/50 first:border-t-0 first:pt-0">
+                <p className="text-xs font-semibold">{ex.exerciseName}</p>
+                <ExerciseProgressSummary exercise={ex} lastData={lastData} />
+                {ex.sets.map((set, setIdx) => (
+                  <SetRow
+                    key={set.id}
+                    set={set}
+                    index={setIdx}
+                    lastSet={lastData?.sets.filter((s) => s.completed)[setIdx]}
+                    otherExercises={sessionExercises.filter((e) => e.id !== ex.id)}
+                    onUpdate={(updates) => onUpdateSet(ex.id, set.id, updates)}
+                    onRemove={() => onRemoveSet(ex.id, set.id)}
+                    onToggleComplete={() => onToggleComplete(ex.id, set.id, set)}
+                  />
+                ))}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => onAddSet(ex.id)} className="flex-1 gap-1.5">
+                    <Plus className="w-3.5 h-3.5" /> Add Set
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => onCompleteAll(ex.id)} className="flex-1 gap-1.5">
+                    <Check className="w-3.5 h-3.5" /> Done
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+
+          {candidates.length > 0 && (
+            <DropdownMenu open={pickerOpen} onOpenChange={setPickerOpen}>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full rounded-lg border-2 border-dashed border-border py-2 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5">
+                  <Plus className="w-3.5 h-3.5" /> Add to superset
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center">
+                {candidates.map((ex) => (
+                  <DropdownMenuItem key={ex.id} className="text-sm font-semibold" onClick={() => onAddToSuperset(ex.id)}>
+                    {ex.exerciseName}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       )}
     </div>
@@ -1175,22 +1434,29 @@ interface SetRowProps {
   set: WorkoutSet;
   index: number;
   lastSet?: WorkoutSet;
+  otherExercises: SessionExercise[];
   onUpdate: (updates: Partial<WorkoutSet>) => void;
   onRemove: () => void;
   onToggleComplete: () => void;
 }
 
-const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: string; hint: string }> = {
-  normal: { label: "Normal", short: "N", color: "bg-muted text-muted-foreground", hint: "A regular set, stopped with reps left in the tank" },
-  assisted: { label: "Assisted", short: "A", color: "bg-blue-500/20 text-blue-400 border border-blue-500/30", hint: "Used a machine or a spotter to help complete the reps" },
-  failure: { label: "Failure", short: "F", color: "bg-destructive/20 text-destructive border border-destructive/30", hint: "Pushed until you physically couldn't do another rep" },
+const SET_TYPE_CONFIG: Record<SetType, { label: string; short: string; color: string }> = {
+  normal: { label: "Normal", short: "N", color: "bg-muted text-muted-foreground" },
+  warmup: { label: "Warmup", short: "W", color: "bg-[hsl(var(--chart-2))]/20 text-[hsl(var(--chart-2))] border border-[hsl(var(--chart-2))]/30" },
+  assisted: { label: "Assisted", short: "A", color: "bg-primary/20 text-primary border border-primary/30" },
+  failure: { label: "Failure", short: "F", color: "bg-destructive/20 text-destructive border border-destructive/30" },
+  dropset: { label: "Dropset", short: "D", color: "bg-accent/20 text-accent border border-accent/30" },
+  pyramid: { label: "Pyramid", short: "P", color: "bg-accent/20 text-accent border border-accent/30" },
+  superset: { label: "Superset", short: "S", color: "bg-accent/20 text-accent border border-accent/30" },
 };
 
-const SET_TYPES: SetType[] = ["normal", "assisted", "failure"];
+const SET_TYPES: SetType[] = ["normal", "warmup", "assisted", "failure", "dropset", "pyramid", "superset"];
 
-function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
+function SetRow({ set, index, lastSet, otherExercises, onUpdate, onRemove, onToggleComplete }: SetRowProps) {
   const { imperial } = useTheme();
   const typeConfig = SET_TYPE_CONFIG[set.type];
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [pickingSuperset, setPickingSuperset] = useState(false);
 
   return (
     <div
@@ -1279,28 +1545,49 @@ function SetRow({ set, index, lastSet, onUpdate, onRemove, onToggleComplete }: S
           )}
         </div>
         <FieldBox label="Type" bare>
-          <DropdownMenu>
+          <DropdownMenu open={typeOpen} onOpenChange={(o) => { setTypeOpen(o); if (!o) setPickingSuperset(false); }}>
             <DropdownMenuTrigger asChild>
               <button
                 disabled={set.completed}
-                className={`w-full py-2.5 rounded-md text-xs font-semibold transition-colors ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
+                className={`w-full py-2.5 rounded-md text-xs font-semibold transition-colors truncate px-1 ${typeConfig.color} ${set.completed ? "opacity-60" : ""}`}
                 data-testid={`button-set-type-${set.id}`}
               >
                 {typeConfig.label}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="center">
-              {SET_TYPES.map((t) => (
-                <DropdownMenuItem
-                  key={t}
-                  onClick={() => onUpdate({ type: t })}
-                  className="flex flex-col items-start gap-0.5 py-2"
-                  data-testid={`menu-set-type-${t}-${set.id}`}
-                >
-                  <span className="text-sm font-semibold">{SET_TYPE_CONFIG[t].label}</span>
-                  <span className="text-[11px] text-muted-foreground whitespace-normal">{SET_TYPE_CONFIG[t].hint}</span>
-                </DropdownMenuItem>
-              ))}
+              {!pickingSuperset ? (
+                SET_TYPES.map((t) => (
+                  <DropdownMenuItem
+                    key={t}
+                    className="text-sm font-semibold"
+                    data-testid={`menu-set-type-${t}-${set.id}`}
+                    onSelect={(e) => { if (t === "superset") e.preventDefault(); }}
+                    onClick={() => {
+                      if (t === "superset") { setPickingSuperset(true); return; }
+                      onUpdate({ type: t, supersetExerciseId: undefined, supersetExerciseName: undefined });
+                      setTypeOpen(false);
+                    }}
+                  >
+                    {SET_TYPE_CONFIG[t].label}
+                  </DropdownMenuItem>
+                ))
+              ) : otherExercises.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground max-w-[10rem]">No other exercises in this session</p>
+              ) : (
+                otherExercises.map((ex) => (
+                  <DropdownMenuItem
+                    key={ex.id}
+                    className="text-sm font-semibold"
+                    onClick={() => {
+                      onUpdate({ type: "superset", supersetExerciseId: ex.id, supersetExerciseName: ex.exerciseName });
+                      setTypeOpen(false);
+                    }}
+                  >
+                    {ex.exerciseName}
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </FieldBox>
@@ -1448,6 +1735,7 @@ function AddExerciseDialog({
   onClose: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const [newMuscleGroup, setNewMuscleGroup] = useState<string>("");
   const exercises = getExercises();
   const filtered = exercises.filter(
     (e) =>
@@ -1473,7 +1761,40 @@ function AddExerciseDialog({
         <ScrollArea className="h-64">
           <div className="flex flex-col pr-2">
             {filtered.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-8">No exercises found</p>
+              search.trim() ? (
+                <div className="flex flex-col gap-2 px-1 py-2">
+                  <p className="text-xs text-muted-foreground">Muscle group (optional)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {MUSCLE_GROUPS.map((mg) => (
+                      <button
+                        key={mg}
+                        onClick={() => setNewMuscleGroup((v) => (v === mg ? "" : mg))}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          newMuscleGroup === mg
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted/30 text-muted-foreground border-border"
+                        }`}
+                        data-testid={`button-new-exercise-muscle-group-${mg}`}
+                      >
+                        {mg}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const created = createExercise(search.trim(), newMuscleGroup || undefined);
+                      onAdd(created.id, created.name, created.muscleGroup);
+                    }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-left bg-muted/30 mt-1"
+                    data-testid="button-create-exercise-session"
+                  >
+                    <Plus className="w-4 h-4 text-primary flex-shrink-0" />
+                    <p className="text-sm font-medium">Create “{search.trim()}”</p>
+                  </button>
+                </div>
+              ) : (
+                <p className="text-center text-sm text-muted-foreground py-8">No exercises found</p>
+              )
             ) : search.trim() ? (
               filtered.map((ex) => (
                 <button key={ex.id} onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
@@ -1495,9 +1816,7 @@ function AddExerciseDialog({
                 }, {})
               ).sort(([a], [b]) => a.localeCompare(b)).map(([group, exs]) => (
                 <div key={group}>
-                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground bg-muted/20 rounded-md mt-1">
-                    {group}
-                  </div>
+                  <SectionLabel className="px-3 py-1.5 bg-muted/20 rounded-md mt-1">{group}</SectionLabel>
                   {exs.map((ex) => (
                     <button key={ex.id} onClick={() => onAdd(ex.id, ex.name, ex.muscleGroup)}
                       className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left hover:bg-muted/30"

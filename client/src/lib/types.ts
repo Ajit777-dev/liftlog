@@ -1,4 +1,4 @@
-export type SetType = "normal" | "assisted" | "failure";
+export type SetType = "normal" | "assisted" | "failure" | "warmup" | "dropset" | "pyramid" | "superset";
 
 export interface WorkoutSet {
   id: string;
@@ -7,6 +7,8 @@ export interface WorkoutSet {
   partialReps: number;
   type: SetType;
   completed: boolean;
+  supersetExerciseId?: string;   // superset only
+  supersetExerciseName?: string; // superset only, cached for display
 }
 
 export interface CardioEntry {

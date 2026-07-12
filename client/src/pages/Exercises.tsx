@@ -16,6 +16,8 @@ import { MUSCLE_GROUPS } from "@/lib/types";
 import { formatDate } from "@/lib/hooks";
 import { useToast } from "@/hooks/use-toast";
 import { ToastAction } from "@/components/ui/toast";
+import { PageHeader, PageTitle } from "@/components/PageHeader";
+import { SectionLabel } from "@/components/SectionLabel";
 
 // Minimal monochrome: one quiet neutral badge for every muscle group.
 const NEUTRAL_BADGE = "bg-muted/70 text-muted-foreground border border-border/50";
@@ -130,10 +132,8 @@ export default function Exercises() {
 
   return (
     <div className="flex flex-col min-h-full pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
-          <h1 className="text-3xl font-bold tracking-tight mb-3">Exercises</h1>
+      <PageHeader>
+          <PageTitle className="mb-3">Exercises</PageTitle>
 
           <div className="flex items-center gap-2 mb-3">
             {/* Search */}
@@ -183,8 +183,7 @@ export default function Exercises() {
               ))}
             </div>
           )}
-        </div>
-      </div>
+      </PageHeader>
 
       <div className="max-w-lg mx-auto w-full px-4 py-3 flex flex-col gap-4">
         {filtered.length === 0 ? (
@@ -209,9 +208,7 @@ export default function Exercises() {
         ) : (
           muscleGroups.map((group) => (
             <div key={group}>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 px-1">
-                {group}
-              </h2>
+              <SectionLabel className="mb-2 px-1">{group}</SectionLabel>
               <div className="rounded-xl border border-card-border bg-card overflow-hidden divide-y divide-border/50">
                 {grouped[group].map((ex) => {
                   const pb = pbMap.get(ex.id);
@@ -226,7 +223,7 @@ export default function Exercises() {
                         <div className="flex items-center gap-2">
                           <span className="text-base truncate">{ex.name}</span>
                           {pb && (
-                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                            <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30">
                               PB
                             </span>
                           )}

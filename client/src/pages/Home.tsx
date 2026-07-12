@@ -21,6 +21,9 @@ import { ToastAction } from "@/components/ui/toast";
 import type { WorkoutTemplate, WorkoutSession } from "@/lib/types";
 import { formatDate, toDisplay, unitLabel } from "@/lib/hooks";
 import { useTheme } from "@/lib/theme";
+import { PageHeader, PageTitle } from "@/components/PageHeader";
+import { SectionLabel } from "@/components/SectionLabel";
+import { IconButton } from "@/components/IconButton";
 
 const TEMPLATE_COLORS = [
   "#3b82f6", "#f97316", "#22c55e", "#a855f7",
@@ -223,25 +226,21 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-full pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 pt-4 pb-3">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold tracking-tight">GreatLift</h1>
-            <button
-              onClick={() => setShowSettings(true)}
-              title="Settings"
-              data-testid="button-settings"
-              className="w-9 h-9 rounded-xl flex items-center justify-center bg-muted/60 border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          </p>
+      <PageHeader>
+        <div className="flex items-center justify-between">
+          <PageTitle>GreatLift</PageTitle>
+          <IconButton
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            data-testid="button-settings"
+          >
+            <Settings className="w-4 h-4" />
+          </IconButton>
         </div>
-      </div>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </p>
+      </PageHeader>
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-4">
         {/* Active session banner */}
@@ -269,9 +268,7 @@ export default function Home() {
         {/* Templates */}
         <div>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              My Workouts
-            </h2>
+            <SectionLabel>My Workouts</SectionLabel>
             <Button
               size="sm"
               onClick={() => setShowCreate(true)}
@@ -354,7 +351,7 @@ export default function Home() {
                       {ex.sets.map((set, i) => (
                         <span key={i} className="text-[11px] font-mono bg-muted/40 border border-border/50 px-2 py-0.5 rounded-full">
                           {set.weight > 0 ? `${toDisplay(set.weight, imperial)}${unitLabel(imperial)}` : "BW"} × {set.reps}
-                          {(set.partialReps ?? 0) > 0 && <span className="text-orange-400">+{set.partialReps}p</span>}
+                          {(set.partialReps ?? 0) > 0 && <span className="text-warning">+{set.partialReps}p</span>}
                           {set.type !== "normal" && <span className="opacity-60"> {set.type[0].toUpperCase()}</span>}
                         </span>
                       ))}
@@ -555,7 +552,7 @@ export default function Home() {
                     data-testid="button-export-excel"
                     className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
                   >
-                    <FileSpreadsheet className="w-4 h-4 text-green-500" />
+                    <FileSpreadsheet className="w-4 h-4 text-success" />
                     Excel
                   </button>
                   <button
@@ -563,7 +560,7 @@ export default function Home() {
                     data-testid="button-export-pdf"
                     className="flex items-center justify-center gap-2 rounded-xl border border-border bg-muted/40 py-3 text-sm font-semibold text-foreground transition-colors active:scale-95 hover:bg-muted"
                   >
-                    <FileText className="w-4 h-4 text-red-500" />
+                    <FileText className="w-4 h-4 text-destructive" />
                     PDF
                   </button>
                 </div>
@@ -670,7 +667,7 @@ function TemplateCard({ template, lastSession, cute, onStart, onEdit, onDuplicat
 
   return (
     <div
-      className="rounded-2xl border border-card-border bg-card overflow-hidden animate-fade-in shadow-sm shadow-black/20"
+      className="rounded-xl border border-card-border bg-card overflow-hidden animate-fade-in shadow-sm shadow-black/20"
       data-testid={`card-template-${template.id}`}
     >
       <div className="p-4">

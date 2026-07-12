@@ -217,6 +217,11 @@ html.cute {
     font-feature-settings: "tnum";
   }
 
+  /* Theme-aware status colors, reusing the chart palette so they follow
+     light/dark/cute mode instead of being hardcoded per usage site. */
+  .text-success { color: hsl(var(--chart-3)); }
+  .text-warning { color: hsl(var(--chart-2)); }
+
   ::selection {
     background: hsl(var(--primary) / 0.28);
   }

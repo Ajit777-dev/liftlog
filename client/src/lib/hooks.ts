@@ -153,6 +153,10 @@ const INTENSITY_TYPE_MULTIPLIER: Record<WorkoutSet["type"], number> = {
   failure: 1.0,
   normal: 0.92,
   assisted: 0.8,
+  warmup: 0,
+  dropset: 0.92,
+  pyramid: 0.92,
+  superset: 0.92,
 };
 
 /**

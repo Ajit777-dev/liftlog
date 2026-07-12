@@ -3,6 +3,7 @@ import { useParams, useLocation } from "wouter";
 import { ArrowLeft, Plus, Trash2, Search, GripVertical, Dumbbell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PageHeader, PageHeaderRow, SubpageTitle } from "@/components/PageHeader";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -53,9 +54,8 @@ export default function TemplateEditor() {
 
   return (
     <div className="flex flex-col min-h-full pb-20">
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-md border-b border-border">
-        <div className="max-w-lg mx-auto px-4 py-3 flex items-center gap-3">
+      <PageHeader>
+        <PageHeaderRow>
           <Button
             size="icon"
             variant="ghost"
@@ -70,7 +70,7 @@ export default function TemplateEditor() {
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: template.color || "hsl(var(--primary))" }}
               />
-              <h1 className="font-bold text-base truncate">{template.name}</h1>
+              <SubpageTitle>{template.name}</SubpageTitle>
             </div>
             <p className="text-xs text-muted-foreground">Edit exercises</p>
           </div>
@@ -83,8 +83,8 @@ export default function TemplateEditor() {
             <Plus className="w-4 h-4" />
             Add
           </Button>
-        </div>
-      </div>
+        </PageHeaderRow>
+      </PageHeader>
 
       <div className="max-w-lg mx-auto w-full px-4 py-4 flex flex-col gap-3">
         {template.exercises.length === 0 ? (
